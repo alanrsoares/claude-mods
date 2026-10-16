@@ -1,0 +1,6 @@
+{
+  "name": "agent-gate",
+  "version": "0.1.0",
+  "description": "Puts every Agent (subagent) call to the permission decider instead of running it unasked.",
+  "author": { "name": "Alan R. Soares" }
+}

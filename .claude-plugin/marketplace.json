@@ -1,0 +1,56 @@
+{
+  "name": "alan-mods",
+  "owner": {
+    "name": "Alan R. Soares"
+  },
+  "metadata": {
+    "description": "Claude Code mods: agent gate, bash tidy, check nudge, headroom HUD, STE100."
+  },
+  "plugins": [
+    {
+      "name": "agent-gate",
+      "source": "./agent-gate",
+      "description": "Puts every Agent (subagent) call to the permission decider instead of running it unasked.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Alan R. Soares"
+      }
+    },
+    {
+      "name": "bash-tidy",
+      "source": "./bash-tidy",
+      "description": "Drops redundant cd from Bash commands and asks before cat/grep/sed -i that Read, Grep or Edit would do.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Alan R. Soares"
+      }
+    },
+    {
+      "name": "check-nudge",
+      "source": "./check-nudge",
+      "description": "Warns under the answer when a turn edited apps/web but never ran bun run check.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Alan R. Soares"
+      }
+    },
+    {
+      "name": "headroom",
+      "source": "./headroom-hud",
+      "description": "Band above the prompt: context-window gauge, session cost and headroom proxy savings.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Alan R. Soares"
+      }
+    },
+    {
+      "name": "ste100",
+      "source": "./ste100",
+      "description": "Asks the model to write in ASD-STE100 Simplified Technical English and lints each answer against its sentence rules.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Alan R. Soares"
+      }
+    }
+  ]
+}
