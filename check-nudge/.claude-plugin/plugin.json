@@ -1,7 +1,0 @@
-{
-  "name": "check-nudge",
-  "version": "0.1.0",
-  "description": "Warns under the answer when a turn edited apps/web but never ran bun run check.",
-  "author": { "name": "Alan R. Soares" },
-  "types": "./types/index.d.ts"
-}

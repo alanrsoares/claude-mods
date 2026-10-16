@@ -7,7 +7,7 @@ const DEFAULT_PROXY = 'http://127.0.0.1:8787'
 const POLL_MS = 15_000
 const BAR_CELLS = 10
 
-const headroom = atom({ plugin: 'headroom', key: 'headroom' } as const, null)
+const headroom = atom({ plugin: 'headroom-hud', key: 'headroom' } as const, null)
 
 const tokens = (n: number) =>
   n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${n}`

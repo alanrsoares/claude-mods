@@ -4,7 +4,7 @@
     "name": "Alan R. Soares"
   },
   "metadata": {
-    "description": "Claude Code mods: agent gate, bash tidy, check nudge, headroom HUD, STE100."
+    "description": "Claude Code mods: agent gate, bash tidy, headroom HUD, STE100."
   },
   "plugins": [
     {
@@ -14,7 +14,9 @@
       "version": "0.1.0",
       "author": {
         "name": "Alan R. Soares"
-      }
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/agent-gate"
     },
     {
       "name": "bash-tidy",
@@ -23,25 +25,20 @@
       "version": "0.1.0",
       "author": {
         "name": "Alan R. Soares"
-      }
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/bash-tidy"
     },
     {
-      "name": "check-nudge",
-      "source": "./check-nudge",
-      "description": "Warns under the answer when a turn edited apps/web but never ran bun run check.",
-      "version": "0.1.0",
-      "author": {
-        "name": "Alan R. Soares"
-      }
-    },
-    {
-      "name": "headroom",
+      "name": "headroom-hud",
       "source": "./headroom-hud",
       "description": "Band above the prompt: context-window gauge, session cost and headroom proxy savings.",
       "version": "0.1.0",
       "author": {
         "name": "Alan R. Soares"
-      }
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/headroom-hud"
     },
     {
       "name": "ste100",
@@ -50,7 +47,9 @@
       "version": "0.1.0",
       "author": {
         "name": "Alan R. Soares"
-      }
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/ste100"
     }
   ]
 }

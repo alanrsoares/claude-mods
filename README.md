@@ -6,8 +6,7 @@ Claude Code mods (plugins with hooks), published as one marketplace.
 | --- | --- |
 | `agent-gate` | Sends every Agent (subagent) call to the permission decider. |
 | `bash-tidy` | Drops redundant `cd`; asks before `cat`/`grep`/`sed -i` that Read, Grep or Edit would do. |
-| `check-nudge` | Warns when a turn edited `apps/web` but never ran `bun run check`. Specific to one repo layout. |
-| `headroom-hud` | Band above the prompt: context gauge, session cost, headroom proxy savings and version. Reads `ANTHROPIC_BASE_URL`, default `http://127.0.0.1:8787`. |
+| `headroom-hud` | Band above the prompt: context gauge, session cost, headroom proxy savings and version. Needs the [headroom](https://github.com/chopratejas/headroom) proxy; reads its address from `ANTHROPIC_BASE_URL` (default `http://127.0.0.1:8787`). |
 | `ste100` | Asks for ASD-STE100 Simplified Technical English and lints each answer. |
 
 ## Install
@@ -37,3 +36,7 @@ The `*.test.ts` files import `claude-code/testing` from those generated types an
 without them.
 
 Bump `version` in the mod's `plugin.json` and in `.claude-plugin/marketplace.json` for each release.
+
+## Licence
+
+[MIT](LICENSE)
