@@ -13,7 +13,7 @@ Claude Code mods (plugins with hooks), published as one marketplace.
 ## Install
 
 ```
-/plugin marketplace add <owner>/claude-mods
+/plugin marketplace add alanrsoares/claude-mods
 /plugin install headroom-hud@alan-mods
 ```
 
@@ -21,7 +21,7 @@ Or pre-seed `settings.json`:
 
 ```json
 {
-  "extraKnownMarketplaces": { "alan-mods": { "source": { "source": "github", "repo": "<owner>/claude-mods" } } },
+  "extraKnownMarketplaces": { "alan-mods": { "source": { "source": "github", "repo": "alanrsoares/claude-mods" } } },
   "enabledPlugins": { "headroom-hud@alan-mods": true }
 }
 ```
