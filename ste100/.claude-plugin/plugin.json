@@ -1,0 +1,6 @@
+{
+  "name": "ste100",
+  "version": "0.1.0",
+  "description": "Asks the model to write in ASD-STE100 Simplified Technical English and lints each answer against its sentence rules.",
+  "author": { "name": "Alan R. Soares" }
+}

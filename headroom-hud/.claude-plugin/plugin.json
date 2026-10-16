@@ -1,0 +1,7 @@
+{
+  "name": "headroom",
+  "version": "0.1.0",
+  "description": "Band above the prompt: context-window gauge, session cost and headroom proxy savings.",
+  "author": { "name": "Alan R. Soares" },
+  "types": "./types/index.d.ts"
+}
