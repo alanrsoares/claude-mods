@@ -23,6 +23,7 @@ const modelName = (id: string) =>
   id.replace(/^claude-/, '').replace(/\[.*\]$/, '').replace(/-\d{8}$/, '').replace(/(-\d+)+$/, '')
 
 // The main loop's effort as its last request carried it; the session API does not expose it.
+// Also kept in the store, so the band shows it again after a reload, before the first request.
 let effort: string | number | undefined
 let version: string | undefined
 
@@ -104,7 +105,11 @@ export const register: Register = on => {
   })
 
   on('turn.step', async function* ($, e, next) {
-    if (e.agentId === undefined) effort = e.effort
+    if (e.agentId === undefined && e.effort !== effort) {
+      effort = e.effort
+      await $.store.set('effort', effort ?? null)
+      $.ui.invalidate('ui.render')
+    }
     return yield* next(e)
   })
 
@@ -120,12 +125,13 @@ export const register: Register = on => {
     const { context, cost } = await $.session.usage()
     const stats = await read($, headroom)
     const model = modelName(await $.session.model())
+    const level = effort ?? ((await $.store.get('effort')) as string | number | null) ?? undefined
     const { Box, Text } = $.ui.resolve(e)
 
     const pct = context.percent
     return (
       <Box>
-        <Text dimColor>◆ {effort === undefined ? model : `${model} ${effort}`} │ ◧ </Text>
+        <Text dimColor>◆ {level === undefined ? model : `${model} ${level}`} │ ◧ </Text>
         {pct === undefined ? (
           <Text dimColor>{bar(0)}{'  '}–</Text>
         ) : (
