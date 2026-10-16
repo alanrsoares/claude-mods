@@ -10,6 +10,6 @@ export type Headroom = Totals & {
 
 declare module 'claude-code' {
   interface PluginState {
-    'headroom': { headroom: Headroom | null }
+    'headroom-hud': { headroom: Headroom | null }
   }
 }
