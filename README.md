@@ -6,8 +6,17 @@ Claude Code mods (plugins with hooks), published as one marketplace.
 | --- | --- |
 | `agent-gate` | Sends every Agent (subagent) call to the permission decider. |
 | `bash-tidy` | Drops redundant `cd`; asks before `cat`/`grep`/`sed -i` that Read, Grep or Edit would do. |
-| `headroom-hud` | Band above the prompt: context gauge, session cost, headroom proxy savings and version. Needs the [headroom](https://github.com/chopratejas/headroom) proxy; reads its address from `ANTHROPIC_BASE_URL` (default `http://127.0.0.1:8787`). |
+| `headroom-hud` | Band above the prompt: context gauge, session cost, headroom proxy savings and version. `/compact` asks which topics to keep. Needs the [headroom](https://github.com/chopratejas/headroom) proxy; reads its address from `ANTHROPIC_BASE_URL` (default `http://127.0.0.1:8787`). |
 | `ste100` | Asks for ASD-STE100 Simplified Technical English and lints each answer. |
+
+## Custom mods
+
+`custom/` holds mods tied to one workflow or repo layout. They are not in `marketplace.json`; load them
+from a folder (see Develop).
+
+| Mod | What it does |
+| --- | --- |
+| `custom/check-nudge` | Warns, and asks before `git commit` or `gh pr create`, when a turn edited `apps/web` and `bun run check` has not run. |
 
 ## Install
 
