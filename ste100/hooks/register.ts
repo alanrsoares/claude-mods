@@ -40,7 +40,7 @@ export const register: Register = on => {
 
   on('agent.spawn', async ($, e, next) =>
     (await isOn($)) ? next({ ...e, prompt: `${SUBAGENT_NOTE}\n\n${e.prompt}` }) : next(e),
-  )
+  ).catch((_$, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
     if (e.reason === 'answer' && e.agentId === undefined && (await isOn($))) {

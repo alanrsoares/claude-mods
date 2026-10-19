@@ -17,17 +17,17 @@ export const register: Register = on => {
   on('tool.call', { tool: 'Edit' }, async ($, e, next) => {
     if (WEB.test(e.file_path)) await update($, edited, () => true)
     return next(e)
-  })
+  }).catch((_$, e, next) => next(e))
 
   on('tool.call', { tool: 'Write' }, async ($, e, next) => {
     if (WEB.test(e.file_path)) await update($, edited, () => true)
     return next(e)
-  })
+  }).catch((_$, e, next) => next(e))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     if (CHECK.test(e.command)) await update($, ran, () => true)
     return next(e)
-  })
+  }).catch((_$, e, next) => next(e))
 
   on('tool.check', { tool: 'Bash' }, async ($, e, next) => {
     const stale = SHIP.test(commandOf(e)) && (await read($, edited)) && !(await read($, ran))
