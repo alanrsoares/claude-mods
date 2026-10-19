@@ -8,7 +8,7 @@ export const stripCd = (command: string, cwd: string) => {
   let out = command
   for (;;) {
     const m = LEADING_CD.exec(out)
-    if (!m || trim(unquote(m[1])) !== trim(cwd)) return out
+    if (!m || trim(unquote(m[1] ?? '')) !== trim(cwd)) return out
     out = out.slice(m[0].length)
   }
 }

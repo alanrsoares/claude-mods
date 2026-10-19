@@ -9,7 +9,8 @@ export const register: Register = on => {
   })
 
   on('tool.check', { tool: 'Bash' }, (_$, e, next) => {
-    const reason = redirectFor(e.command)
+    const command = (e.input as { command?: unknown } | null)?.command
+    const reason = typeof command === 'string' ? redirectFor(command) : undefined
     return reason ? { decision: 'ask', reason } : next(e)
   })
 }
