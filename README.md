@@ -44,6 +44,9 @@ Load a mod from its folder with `CLAUDE_CODE_PLUGIN_DIRS` (colon-separated) in `
 The `*.test.ts` files import `claude-code/testing` from those generated types and do not run
 without them.
 
+`bun run check` typechecks and validates every mod. Run it before each commit automatically with
+`git config core.hooksPath .githooks`. A new mod must be added to the list in `package.json`.
+
 Bump `version` in the mod's `plugin.json` and in `.claude-plugin/marketplace.json` for each release.
 
 ## Licence

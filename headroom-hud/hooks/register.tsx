@@ -126,7 +126,7 @@ export const register: Register = on => {
     } catch {
       return next(e)
     }
-  })
+  }).catch((_$, e, next) => next(e))
 
   on('session.start', async ($, e, next) => {
     const proxy = (await $.env.get('ANTHROPIC_BASE_URL')) ?? DEFAULT_PROXY
