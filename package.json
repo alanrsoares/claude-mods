@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "scripts": {
+    "check": "bun run typecheck && bun run validate",
+    "typecheck": "for d in agent-gate bash-tidy headroom-hud ste100 custom/*; do (cd $d && bunx tsc --noEmit) || exit 1; done",
+    "validate": "for d in agent-gate bash-tidy headroom-hud ste100 custom/*; do claude plugin validate $d || exit 1; done"
+  }
+}
