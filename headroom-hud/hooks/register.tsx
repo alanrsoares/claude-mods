@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, SessionMessage } from 'claude-code'
 
 import type { Headroom, Totals } from '../types'
 
@@ -73,7 +73,61 @@ const warnContext = async ($: EngineInterface) => {
   }
 }
 
+const MAX_TOPICS = 4 // the ask dialog takes 2-4 options
+const DIGEST_CHARS = 24_000
+
+const digest = (messages: readonly SessionMessage[]) =>
+  messages
+    .filter(m => m.text)
+    .map(m => `${m.role}: ${m.text.slice(0, 400)}`)
+    .join('\n')
+    .slice(-DIGEST_CHARS)
+
+/** The model's reply as 2-4 labels, or undefined when it is not that. */
+const parseTopics = (text: string) => {
+  const json: unknown = JSON.parse(text.replace(/^```(?:json)?|```$/gm, '').trim())
+  if (!Array.isArray(json) || json.length < 2 || json.length > MAX_TOPICS) return undefined
+  const labels = json.filter((t): t is string => typeof t === 'string' && t.trim() !== '')
+  return labels.length === json.length ? labels.map(t => t.replaceAll(',', ' ').trim()) : undefined
+}
+
+const compactInstructions = (topics: string[], answer: string) => {
+  const picked = answer.split(',').map(s => s.trim())
+  const kept = topics.filter(t => picked.includes(t))
+  const dropped = topics.filter(t => !kept.includes(t))
+  const other = kept.length ? '' : answer.trim() // free text typed under "Other"
+  return [
+    kept.length && `Keep in full detail: ${kept.join('; ')}.`,
+    dropped.length && `Reduce to one line each, or drop: ${dropped.join('; ')}.`,
+    other,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
 export const register: Register = on => {
+  // `/compact` asks which topics to keep; any failure leaves the compaction as it was.
+  on('session.compact', { trigger: 'manual' }, async ($, e, next) => {
+    if (e.instructions) return next(e)
+    try {
+      const reply = await $.model.complete({
+        model: 'haiku',
+        prompt: `List the ${MAX_TOPICS} or fewer main topics of this session as a JSON array of short labels. Reply with the JSON only.\n\n${digest(e.messages)}`,
+      })
+      const topics = reply.isAnswered ? parseTopics(reply.text) : undefined
+      if (!topics) return next(e)
+      const answer = await $.ui.ask('Which topics must the compaction keep?', {
+        options: topics,
+        header: 'Compact',
+        multiSelect: true,
+      })
+      const instructions = compactInstructions(topics, answer)
+      return next(instructions ? { ...e, instructions } : e)
+    } catch {
+      return next(e)
+    }
+  })
+
   on('session.start', async ($, e, next) => {
     const proxy = (await $.env.get('ANTHROPIC_BASE_URL')) ?? DEFAULT_PROXY
     const poll = async () => {
@@ -93,7 +147,7 @@ export const register: Register = on => {
         const { tokensSaved, usdSaved, requests } = fresh
         return { ...fresh, base: prev?.base ?? savedBase ?? { tokensSaved, usdSaved, requests } }
       })
-      const { value } = await $.state.get(headroom)
+      const value = await read($, headroom)
       if (value?.base && !savedBase) await $.store.set('base', { startedAt, base: value.base })
       await warnContext($)
       $.ui.invalidate('ui.render')
