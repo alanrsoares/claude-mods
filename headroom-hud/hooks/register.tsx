@@ -5,7 +5,7 @@ import type { Headroom, Totals } from '../types'
 
 const DEFAULT_PROXY = 'http://127.0.0.1:8787'
 const POLL_MS = 15_000
-const BAR_CELLS = 10
+const GUTTER = 4 // the band's `[-]` toggle sits beside the tree
 
 const headroom = atom({ plugin: 'headroom-hud', key: 'headroom' } as const, null)
 
@@ -14,9 +14,9 @@ const tokens = (n: number) =>
 
 const usd = (n: number) => `$${n.toFixed(n >= 100 ? 0 : 2)}`
 
-const bar = (pct: number) => {
-  const filled = Math.min(BAR_CELLS, Math.round((pct / 100) * BAR_CELLS))
-  return '▰'.repeat(filled) + '▱'.repeat(BAR_CELLS - filled)
+const bar = (pct: number, cells: number) => {
+  const filled = Math.min(cells, Math.round((pct / 100) * cells))
+  return '▰'.repeat(filled) + '▱'.repeat(cells - filled)
 }
 
 const modelName = (id: string) =>
@@ -57,6 +57,79 @@ const sinceStart = (h: Headroom) => ({
   usd: h.usdSaved - (h.base?.usdSaved ?? h.usdSaved),
   requests: h.requests - (h.base?.requests ?? h.requests),
 })
+
+type Band = {
+  model: string
+  level: string | number | undefined
+  context: { percent?: number; tokens?: number; window: number }
+  cost: number | undefined
+  stats: Headroom | null
+}
+
+type Seg = { text: string; color?: string; dim?: true }
+
+/** What a tier shows, richest first; `fit` takes the first that fits the width. */
+const TIERS = [
+  { cells: 10, tokens: true, version: true, saved: true, requests: true, totals: true },
+  { cells: 10, tokens: true, version: true, saved: true, requests: true, totals: false },
+  { cells: 10, tokens: true, version: false, saved: true, requests: false, totals: false },
+  { cells: 6, tokens: false, version: false, saved: true, requests: false, totals: false },
+  { cells: 0, tokens: false, version: false, saved: false, requests: false, totals: false },
+] as const
+
+type Tier = (typeof TIERS)[number]
+
+const segments = ({ model, level, context, cost, stats }: Band, t: Tier): Seg[] => {
+  const pct = context.percent
+  const tail = [t.tokens && `${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)]
+    .filter(Boolean)
+    .join(' · ')
+  const gauge = t.cells ? (p: number) => `${bar(p, t.cells)}  ` : () => ''
+  const since = stats && sinceStart(stats)
+
+  const proxy = (): Seg[] => {
+    if (stats === null || since === null) return [{ text: '…', dim: true }]
+    if (stats.requests === 0 && !stats.isUp) return [{ text: '○ proxy down', color: 'red' }]
+    const color = stats.isUp ? undefined : 'yellow'
+    const dot = stats.isUp ? '●' : '○'
+    if (!t.saved) return [{ text: dot, color }]
+    return [
+      { text: `${dot} ↓${tokens(since.tokens)} ${usd(since.usd)}`, color },
+      ...(t.requests || t.totals
+        ? [
+            {
+              text: [
+                t.requests && ` · ${since.requests}req`,
+                t.totals &&
+                  ` │ Σ ↓${tokens(stats.tokensSaved)} ${usd(stats.usdSaved)} (${Math.round(stats.savingsPct)}%) ⛁ ${usd(stats.cacheUsd)}`,
+              ]
+                .filter(Boolean)
+                .join(''),
+              dim: true as const,
+            },
+          ]
+        : []),
+    ]
+  }
+
+  return [
+    { text: `◆ ${level === undefined ? model : `${model} ${level}`} │ ◧ `, dim: true },
+    pct === undefined
+      ? { text: `${gauge(0)}–`, dim: true }
+      : { text: `${gauge(pct)}${pct}%`, color: heat(pct) },
+    { text: tail && ` ${tail}`, dim: true },
+    { text: ` │ ◈ ${t.version && version !== undefined ? `headroom@${version} ` : ''}`, dim: true },
+    ...proxy(),
+  ]
+}
+
+const width = (segs: readonly Seg[]) => segs.reduce((n, g) => n + [...g.text].length, 0)
+
+/** The richest tier within `room` columns; the leanest when none fits (Text truncates it). */
+const fit = (band: Band, room: number) => {
+  const all = TIERS.map(t => segments(band, t))
+  return all.find(s => width(s) <= room) ?? all.at(-1) ?? []
+}
 
 const COMPACT_AT = 75
 const REARM_BELOW = 50
@@ -177,43 +250,27 @@ export const register: Register = on => {
     if (e.props.hasSurvey) return next(e)
 
     const { context, cost } = await $.session.usage()
-    const stats = await read($, headroom)
-    const model = modelName(await $.session.model())
-    const level = effort ?? ((await $.store.get('effort')) as string | number | null) ?? undefined
+    const data: Band = {
+      model: modelName(await $.session.model()),
+      level: effort ?? ((await $.store.get('effort')) as string | number | null) ?? undefined,
+      context,
+      cost: cost?.usd,
+      stats: await read($, headroom),
+    }
+    const room = (e.viewport?.columns ?? Infinity) - GUTTER
+    const segs = fit(data, room)
     const { Box, Text } = $.ui.resolve(e)
 
-    const pct = context.percent
     return (
       <Box>
-        <Text dimColor>◆ {level === undefined ? model : `${model} ${level}`} │ ◧ </Text>
-        {pct === undefined ? (
-          <Text dimColor>{bar(0)}{'  '}–</Text>
-        ) : (
-          <Text color={heat(pct)}>
-            {bar(pct)}{'  '}{pct}%
-          </Text>
-        )}
-        <Text dimColor>
-          {' '}
-          {tokens(context.tokens ?? 0)}/{tokens(context.window)}
-          {cost ? ` · ${usd(cost.usd)}` : ''}
-        </Text>
-        <Text dimColor> │ ◈ {version === undefined ? '' : `headroom@${version} `}</Text>
-        {stats === null ? (
-          <Text dimColor>…</Text>
-        ) : stats.requests === 0 && !stats.isUp ? (
-          <Text color="red">○ proxy down</Text>
-        ) : (
-          <Text color={stats.isUp ? undefined : 'yellow'}>
-            {stats.isUp ? '●' : '○'} ↓{tokens(sinceStart(stats).tokens)} {usd(sinceStart(stats).usd)}
-            <Text dimColor>
-              {' '}
-              · {sinceStart(stats).requests}req │ Σ ↓{tokens(stats.tokensSaved)} {usd(stats.usdSaved)} ({Math.round(stats.savingsPct)}%) ⛁ {usd(stats.cacheUsd)}
+        <Text wrap="truncate-end">
+          {segs.map((g, i) => (
+            <Text key={`${i}`} color={g.color} dimColor={g.dim}>
+              {g.text}
             </Text>
-          </Text>
-        )}
+          ))}
+        </Text>
       </Box>
     )
   })
 }
-
