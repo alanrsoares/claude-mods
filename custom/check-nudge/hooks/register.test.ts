@@ -22,6 +22,14 @@ test('stays quiet once check ran', async ($, on) => {
   expect(out.text).toBe('done')
 })
 
+test('stays quiet once fanout check ran', async ($, on) => {
+  finish(on)
+  await $.tool.call({ tool: 'Edit', file_path: '/r/apps/web/src/a.ts', old_string: 'a', new_string: 'b' })
+  await $.tool.call({ tool: 'Bash', command: 'fanout check --bail' })
+  const out = await $.turn.complete(turn)
+  expect(out.text).toBe('done')
+})
+
 test('stays quiet when nothing under apps/web changed', async ($, on) => {
   finish(on)
   await $.tool.call({ tool: 'Write', file_path: '/r/docs/a.md', content: 'x' })

@@ -3,7 +3,7 @@ import type { Register } from 'claude-code'
 
 const WEB = /(^|\/)apps\/web\//
 const SHIP = /\b(git\s+commit|gh\s+pr\s+create)\b/
-const CHECK = /\bbun run check\b/
+const CHECK = /\b(bun run check|fanout check)\b/
 
 const commandOf = (e: { input: unknown }) => {
   const command = (e.input as { command?: unknown } | null)?.command
