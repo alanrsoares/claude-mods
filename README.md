@@ -9,15 +9,7 @@ Claude Code mods (plugins with hooks), published as one marketplace.
 | `headroom-hud` | Band above the prompt: context gauge, session cost, headroom proxy savings and version. `/compact` asks which topics to keep. Needs the [headroom](https://github.com/chopratejas/headroom) proxy; reads its address from `ANTHROPIC_BASE_URL` (default `http://127.0.0.1:8787`). |
 | `laya-router` | Rates each prompt with a local [laya](https://huggingface.co/convaiinnovations/laya) server and adds one advisory line for the model: difficulty, domain and a suggested model tier. Needs `laya-serve`; reads `LAYA_URL` (default `http://127.0.0.1:8765`) and `LAYA_TIMEOUT_MS` (default `2500`). Without the server, the prompt goes through unchanged. |
 | `ste100` | Asks for ASD-STE100 Simplified Technical English and lints each answer. |
-
-## Custom mods
-
-`custom/` holds mods tied to one workflow or repo layout. They are not in `marketplace.json`; load them
-from a folder (see Develop).
-
-| Mod | What it does |
-| --- | --- |
-| `custom/check-nudge` | Warns, and asks before `git commit` or `gh pr create`, when a turn edited `apps/web` and `bun run check` has not run. |
+| `verify-gate` | Asks before `git commit` or `gh pr create` while an edited file has not passed a check command since its last edit, and warns at the end of a turn that left code unverified. Set the watched paths, check commands and ship commands as regexes in `/config`. |
 
 ## Install
 

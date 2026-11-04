@@ -1,0 +1,32 @@
+{
+  "name": "verify-gate",
+  "version": "0.1.0",
+  "description": "Asks before git commit or gh pr create while edited code has not passed a check command since its last edit.",
+  "author": {
+    "name": "Alan R. Soares"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/alanrsoares/claude-mods",
+  "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/verify-gate",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "watch": {
+      "type": "string",
+      "title": "Watched paths",
+      "description": "Regex on the edited file path. A match marks the session unverified.",
+      "default": "\\.(c|cc|cpp|cs|css|go|h|hpp|java|jsx?|json|kt|mjs|cjs|py|rb|rs|scss|sql|svelte|swift|tsx?|vue|ya?ml|toml)$"
+    },
+    "check": {
+      "type": "string",
+      "title": "Check commands",
+      "description": "Regex on a Bash command. When a match exits 0, the session is verified.",
+      "default": "\\b(bun|npm|pnpm|yarn)\\s+(run\\s+)?(check|test|lint|typecheck|verify)\\b|\\bcargo\\s+(test|check|clippy)\\b|\\bgo\\s+(test|vet)\\b|\\bpytest\\b|\\bmake\\s+(check|test)\\b"
+    },
+    "ship": {
+      "type": "string",
+      "title": "Ship commands",
+      "description": "Regex on a Bash command. A match asks first while the session is unverified.",
+      "default": "\\bgit\\s+commit\\b|\\bgh\\s+pr\\s+create\\b"
+    }
+  }
+}

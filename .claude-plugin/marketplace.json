@@ -4,7 +4,7 @@
     "name": "Alan R. Soares"
   },
   "metadata": {
-    "description": "Claude Code mods: agent gate, bash tidy, headroom HUD, laya router, STE100."
+    "description": "Claude Code mods: agent gate, bash tidy, headroom HUD, laya router, STE100, verify gate."
   },
   "plugins": [
     {
@@ -61,6 +61,17 @@
       },
       "license": "MIT",
       "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/ste100"
+    },
+    {
+      "name": "verify-gate",
+      "source": "./verify-gate",
+      "description": "Asks before git commit or gh pr create while edited code has not passed a check command since its last edit.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Alan R. Soares"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/verify-gate"
     }
   ]
 }

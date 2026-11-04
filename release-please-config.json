@@ -107,13 +107,18 @@
         }
       ]
     },
-    "custom/check-nudge": {
-      "component": "check-nudge",
+    "verify-gate": {
+      "component": "verify-gate",
       "extra-files": [
         {
           "type": "json",
           "path": ".claude-plugin/plugin.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[?(@.name=='verify-gate')].version"
         }
       ]
     }
