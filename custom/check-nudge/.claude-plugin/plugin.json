@@ -1,7 +1,9 @@
 {
   "name": "check-nudge",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Warns under the answer when a turn edited apps/web but never ran bun run check or fanout check.",
-  "author": { "name": "Alan R. Soares" },
+  "author": {
+    "name": "Alan R. Soares"
+  },
   "types": "./types/index.d.ts"
 }

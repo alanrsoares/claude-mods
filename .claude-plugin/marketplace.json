@@ -11,7 +11,7 @@
       "name": "agent-gate",
       "source": "./agent-gate",
       "description": "Puts every Agent (subagent) call to the permission decider instead of running it unasked.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Alan R. Soares"
       },
@@ -22,7 +22,7 @@
       "name": "bash-tidy",
       "source": "./bash-tidy",
       "description": "Drops redundant cd from Bash commands and asks before cat/grep/sed -i that Read, Grep or Edit would do.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Alan R. Soares"
       },
@@ -33,7 +33,7 @@
       "name": "headroom-hud",
       "source": "./headroom-hud",
       "description": "Band above the prompt: context-window gauge, session cost and headroom proxy savings.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "author": {
         "name": "Alan R. Soares"
       },
@@ -44,7 +44,7 @@
       "name": "laya-router",
       "source": "./laya-router",
       "description": "Rates each prompt with a local laya-serve and adds one advisory line naming a model tier.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Alan R. Soares"
       },
@@ -55,7 +55,7 @@
       "name": "ste100",
       "source": "./ste100",
       "description": "Asks the model to write in ASD-STE100 Simplified Technical English and lints each answer against its sentence rules.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Alan R. Soares"
       },

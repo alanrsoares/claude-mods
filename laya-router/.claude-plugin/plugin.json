@@ -1,6 +1,6 @@
 {
   "name": "laya-router",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Rates each prompt with a local laya-serve and adds one advisory line naming a model tier.",
   "author": {
     "name": "Alan R. Soares"
