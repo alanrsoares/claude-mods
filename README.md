@@ -7,6 +7,7 @@ Claude Code mods (plugins with hooks), published as one marketplace.
 | `agent-gate` | Sends every Agent (subagent) call to the permission decider. |
 | `bash-tidy` | Drops redundant `cd`; asks before `cat`/`grep`/`sed -i` that Read, Grep or Edit would do. |
 | `headroom-hud` | Band above the prompt: context gauge, session cost, headroom proxy savings and version. `/compact` asks which topics to keep. Needs the [headroom](https://github.com/chopratejas/headroom) proxy; reads its address from `ANTHROPIC_BASE_URL` (default `http://127.0.0.1:8787`). |
+| `laya-router` | Rates each prompt with a local [laya](https://huggingface.co/convaiinnovations/laya) server and adds one advisory line for the model: difficulty, domain and a suggested model tier. Needs `laya-serve`; reads `LAYA_URL` (default `http://127.0.0.1:8765`) and `LAYA_TIMEOUT_MS` (default `2500`). Without the server, the prompt goes through unchanged. |
 | `ste100` | Asks for ASD-STE100 Simplified Technical English and lints each answer. |
 
 ## Custom mods
@@ -33,6 +34,18 @@ Or pre-seed `settings.json`:
   "enabledPlugins": { "headroom-hud@alan-mods": true }
 }
 ```
+
+### laya-serve
+
+`laya-router` needs a warm `laya-serve`. Install it with [uv](https://docs.astral.sh/uv/), then run it:
+
+```sh
+uv tool install 'laya[mcp]' --with fastapi --with uvicorn
+LAYA_HOST=127.0.0.1 LAYA_PORT=8765 LAYA_MODELS=english laya-serve
+```
+
+The first start downloads the checkpoint from Hugging Face. Set `LAYA_DEVICE` (`mps`, `cuda` or `cpu`)
+to choose the device. To keep it running, start it from launchd or systemd.
 
 ## Develop
 

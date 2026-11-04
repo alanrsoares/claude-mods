@@ -4,7 +4,7 @@
     "name": "Alan R. Soares"
   },
   "metadata": {
-    "description": "Claude Code mods: agent gate, bash tidy, headroom HUD, STE100."
+    "description": "Claude Code mods: agent gate, bash tidy, headroom HUD, laya router, STE100."
   },
   "plugins": [
     {
@@ -39,6 +39,17 @@
       },
       "license": "MIT",
       "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/headroom-hud"
+    },
+    {
+      "name": "laya-router",
+      "source": "./laya-router",
+      "description": "Rates each prompt with a local laya-serve and adds one advisory line naming a model tier.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Alan R. Soares"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/laya-router"
     },
     {
       "name": "ste100",

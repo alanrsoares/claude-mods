@@ -1,0 +1,11 @@
+{
+  "name": "laya-router",
+  "version": "0.1.0",
+  "description": "Rates each prompt with a local laya-serve and adds one advisory line naming a model tier.",
+  "author": {
+    "name": "Alan R. Soares"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/alanrsoares/claude-mods",
+  "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/laya-router"
+}
