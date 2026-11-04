@@ -26,6 +26,30 @@ from a folder (see Develop).
 /plugin install headroom-hud@alan-mods
 ```
 
+### Self-setup prompt
+
+Paste this into a Claude Code session to let it set up the mods for you:
+
+```text
+Set up the claude-mods marketplace (github.com/alanrsoares/claude-mods) for me.
+
+1. Read its README.md to learn what each plugin does and what it needs.
+2. Ask me which plugins I want: agent-gate, bash-tidy, headroom-hud, laya-router, ste100.
+3. Add the marketplace to ~/.claude/settings.json under extraKnownMarketplaces as
+   "alan-mods" (source github, repo alanrsoares/claude-mods), and set each chosen
+   plugin to true in enabledPlugins as "<name>@alan-mods". Keep all other settings.
+4. For headroom-hud: check that the headroom proxy answers at ANTHROPIC_BASE_URL
+   (default http://127.0.0.1:8787). If it does not, tell me how to install it.
+5. For laya-router: check that `curl -s http://127.0.0.1:8765/health` reports "ok".
+   If it does not, show me the laya-serve steps from the README and ask before you
+   install anything.
+6. Remove any settings hook that does the same job as a chosen plugin, so the work
+   does not run twice. Show me each change before you make it.
+7. Tell me to run /reload-plugins, or to restart Claude Code if you changed env.
+```
+
+### Pre-seed settings
+
 Or pre-seed `settings.json`:
 
 ```json
