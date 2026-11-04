@@ -66,7 +66,7 @@
       "name": "verify-gate",
       "source": "./verify-gate",
       "description": "Asks before git commit or gh pr create while edited code has not passed a check command since its last edit.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Alan R. Soares"
       },
