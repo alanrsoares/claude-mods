@@ -1,0 +1,30 @@
+# release-please keeps a release PR open for mods with changes since their last
+# tag. Merging it bumps each mod's plugin.json and marketplace.json entry,
+# writes its changelog and tags <mod>-v<version>. Installed plugins update only
+# when that version changes.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

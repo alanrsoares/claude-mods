@@ -84,7 +84,8 @@ without them.
 `bun run check` typechecks and validates every mod. Run it before each commit automatically with
 `git config core.hooksPath .githooks`. A new mod must be added to the list in `package.json`.
 
-Bump `version` in the mod's `plugin.json` and in `.claude-plugin/marketplace.json` for each release.
+Do not bump versions by hand. Release-please opens a release PR from Conventional Commits; merging it bumps
+the mod's `plugin.json` and its `marketplace.json` entry, writes `CHANGELOG.md` and tags `<mod>-v<version>`.
 
 ## Licence
 
