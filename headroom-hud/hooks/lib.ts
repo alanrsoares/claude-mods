@@ -71,6 +71,23 @@ export const parse = (text: string): Headroom | null => {
   }
 }
 
+/** The proxy's `/health` body: whether it is headroom, and its version. */
+export const health = (text: string) => {
+  let json: unknown
+  try {
+    json = JSON.parse(text)
+  } catch {
+    return { isHeadroom: false, version: undefined }
+  }
+  const service = at(json, 'service')
+  const version = at(json, 'version')
+  return {
+    // headroom before `service` existed still answers with its version
+    isHeadroom: typeof service === 'string' ? service.startsWith('headroom') : typeof version === 'string',
+    version: typeof version === 'string' ? version : undefined,
+  }
+}
+
 export const ZERO: Totals = { requests: 0, tokensSaved: 0, usdSaved: 0 }
 
 /** The baseline to count from: the proxy's counters falling means it restarted, so count from zero. */
@@ -88,7 +105,8 @@ export type Band = {
   version: string | undefined
   context: { percent?: number; tokens?: number; window: number }
   cost: number | undefined
-  stats: Headroom | null
+  /** 'other': ANTHROPIC_BASE_URL is not a headroom proxy, so the band leaves the proxy out. */
+  stats: Headroom | null | 'other'
 }
 
 export type Seg = { text: string; color?: string; dim?: true }
@@ -104,7 +122,7 @@ export const TIERS = [
 
 type Tier = (typeof TIERS)[number]
 
-const proxySegs = (stats: Band['stats'], t: Tier): Seg[] => {
+const proxySegs = (stats: Headroom | null, t: Tier): Seg[] => {
   if (stats === null) return [{ text: '…', dim: true }]
   if (!stats.isReadable) return [{ text: '● stats?', color: 'yellow' }]
   if (stats.requests === 0 && !stats.isUp) return [{ text: '○ proxy down', color: 'red' }]
@@ -120,7 +138,8 @@ const proxySegs = (stats: Band['stats'], t: Tier): Seg[] => {
     .filter(Boolean)
     .join('')
   return [
-    { text: `${dot} ↓${tokens(since.tokens)} ${usd(since.usd)}`, color },
+    // Δ: all proxy traffic since this session started, other sessions' too
+    { text: `${dot} Δ↓${tokens(since.tokens)} ${usd(since.usd)}`, color },
     ...(detail ? [{ text: detail, dim: true as const }] : []),
   ]
 }
@@ -138,8 +157,12 @@ export const segments = ({ model, level, version, context, cost, stats }: Band, 
       ? { text: `${gauge(0)}–`, dim: true }
       : { text: `${gauge(pct)}${pct}%`, color: heat(pct) },
     { text: tail && ` ${tail}`, dim: true },
-    { text: ` │ ◈ ${t.version && version !== undefined ? `headroom@${version} ` : ''}`, dim: true },
-    ...proxySegs(stats, t),
+    ...(stats === 'other'
+      ? []
+      : [
+          { text: ` │ ◈ ${t.version && version !== undefined ? `headroom@${version} ` : ''}`, dim: true as const },
+          ...proxySegs(stats, t),
+        ]),
   ]
 }
 

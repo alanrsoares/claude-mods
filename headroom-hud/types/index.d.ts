@@ -12,6 +12,12 @@ export type Headroom = Totals & {
 
 declare module 'claude-code' {
   interface PluginState {
-    'headroom-hud': { headroom: Headroom | null }
+    'headroom-hud': {
+      headroom: Headroom | null
+      /** The 75% context toast fired and has not re-armed. */
+      warned: boolean
+      /** ANTHROPIC_BASE_URL answered, but not as headroom; polling stopped. */
+      other: boolean
+    }
   }
 }

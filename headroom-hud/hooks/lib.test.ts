@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { compactInstructions, fit, modelName, parse, parseTopics, rebase, sinceStart, tokens, width } from './lib'
+import { compactInstructions, fit, health, modelName, parse, parseTopics, rebase, sinceStart, tokens, width } from './lib'
 import type { Band } from './lib'
 
 const STATS = JSON.stringify({
@@ -68,4 +68,15 @@ test('fit picks a tier that fits, down to the leanest', async () => {
     const w = width(fit(BAND, room))
     expect(w <= room || w === width(fit(BAND, 0))).toBe(true)
   }
+})
+
+test('health tells headroom from another proxy', async () => {
+  expect(health('{"service":"headroom-proxy","version":"0.42.0"}')).toEqual({ isHeadroom: true, version: '0.42.0' })
+  expect(health('{"version":"0.30.0"}').isHeadroom).toBe(true)
+  expect(health('{"service":"litellm","version":"1.0"}').isHeadroom).toBe(false)
+  expect(health('<html>').isHeadroom).toBe(false)
+})
+
+test('a proxy that is not headroom leaves the band', async () => {
+  expect(fit({ ...BAND, stats: 'other' }, 500).some(g => g.text.includes('◈'))).toBe(false)
 })
