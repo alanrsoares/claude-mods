@@ -6,12 +6,14 @@ import {
   type Band,
   type Seg,
   DOWN,
+  bar,
   MAX_TOPICS,
   UNREADABLE,
   compactInstructions,
   digest,
   health,
   modelName,
+  heat,
   parse,
   parseTopics,
   rebase,
@@ -33,7 +35,7 @@ const dismissed = atom({ plugin: 'headroom-hud', key: 'dismissed' } as const, fa
 
 const TOOL_ID = 'mcp__headroom-hud__compact'
 const PANE = 'hud'
-const GAUGE_LINE = 1 // `rows`' context bar
+const TITLE = ' ◈ HEADROOM '
 const COMPACT = '\uf066' // nf-fa-compress
 const PAD = 1 // cells between the dock's borders and the text, each side
 
@@ -286,37 +288,45 @@ export const register: Register = on => {
     const compact = () => void $.command.run({ command: 'compact' }).catch(() => {})
     if (e.props.placement === 'inline')
       return strip($.ui.resolve(e), stack(await band($), e.props.bodyColumns - BUTTON_CELLS), compact)
-    const lines = rows(await band($))
-    // the gauge line carries the compact button
-    const need = paneColumns([...lines, [...lines[GAUGE_LINE]!, { text: ` ${COMPACT}` }]]) + 2 * PAD
+    const b = await band($)
+    const lines = rows(b)
+    const pct = b.context.percent
+    const pctText = pct === undefined ? '–' : `${pct}%`
+    // the title row: badge, percent and compact button, gap 1 between each
+    const need = Math.max(paneColumns(lines), [...TITLE].length + 1 + pctText.length + BUTTON_CELLS) + 2 * PAD
     // an open of an open id resizes the dock; a width the person dragged to still wins
     if (e.props.placement === 'dock' && need !== asked) {
       asked = need
       void $.ui.open({ id: PANE, title: 'Headroom', columns: need }).catch(() => {})
     }
     const { Box, Button, Text } = $.ui.resolve(e)
-    const line = (segs: Seg[], i: number) => (
-      <Text key={`${i}`} wrap="truncate-end">
-        {segs.map((g, j) => (
-          <Text key={`${j}`} color={g.color} dimColor={g.dim}>
-            {g.text}
-          </Text>
-        ))}
-      </Text>
-    )
+    const color = pct === undefined ? undefined : heat(pct)
     return (
       <Box flexDirection="column" paddingX={PAD}>
-        {lines.map((segs, i) =>
-          i === GAUGE_LINE ? (
-            <Box key={`${i}`} flexDirection="row" gap={1}>
-              {line(segs, i)}
-              {/* runs `/compact` through its hooks, so the topic picker asks first */}
-              <Button key="compact" plain dimColor label={COMPACT} onPress={compact} />
-            </Box>
-          ) : (
-            line(segs, i)
-          ),
-        )}
+        {/* the engine draws no tab title for a lone pane */}
+        <Box key="title" flexDirection="row" gap={1}>
+          <Text backgroundColor="cyan" color="black" weight="bold">
+            {TITLE}
+          </Text>
+          <Text color={color} dimColor={pct === undefined}>
+            {pctText}
+          </Text>
+          {/* runs `/compact` through its hooks, so the topic picker asks first */}
+          <Button key="compact" plain dimColor label={COMPACT} onPress={compact} />
+        </Box>
+        {/* the context gauge, one cell short of the pane's right padding */}
+        <Text key="gauge" color={color} dimColor={pct === undefined}>
+          {bar(pct ?? 0, Math.max(0, e.props.bodyColumns - 2 * PAD - 1))}
+        </Text>
+        {lines.map((segs, i) => (
+          <Text key={`${i}`} wrap="truncate-end">
+            {segs.map((g, j) => (
+              <Text key={`${j}`} color={g.color} dimColor={g.dim}>
+                {g.text}
+              </Text>
+            ))}
+          </Text>
+        ))}
       </Box>
     )
   })

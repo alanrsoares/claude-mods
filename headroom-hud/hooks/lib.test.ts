@@ -73,7 +73,7 @@ test('fit picks a tier that fits, down to the leanest', async () => {
 test('the pane is as wide as its widest line, and drops the proxy for another one', async () => {
   const lines = rows(BAND)
   expect(paneColumns(lines)).toBe(Math.max(...lines.map(width)))
-  expect(rows({ ...BAND, stats: 'other' })).toHaveLength(3)
+  expect(rows({ ...BAND, stats: 'other' })).toHaveLength(2)
   expect(rows({ ...BAND, stats: null }).at(-1)?.[0]?.text).toBe('  …')
 })
 

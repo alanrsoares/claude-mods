@@ -195,18 +195,12 @@ export const stack = (band: Band, room: number): Seg[][] => {
   return [fit(band, room)]
 }
 
-const PANE_BAR = 10
-
-/** The band as lines for the side pane, one fact per line. */
+/** The band as lines for the side pane, one fact per line; the pane's header draws the context percent and bar. */
 export const rows = ({ model, level, version, context, cost, stats }: Band): Seg[][] => {
-  const pct = context.percent
   const tail = [`${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)].filter(Boolean).join(' · ')
   const lines: Seg[][] = [
     [{ text: `󰧑 ${level === undefined ? model : `${model} ${level}`}`, dim: true }],
-    pct === undefined
-      ? [{ text: `◧ ${bar(0, PANE_BAR)} –`, dim: true }]
-      : [{ text: '◧ ', dim: true }, { text: `${bar(pct, PANE_BAR)} ${pct}%`, color: heat(pct) }],
-    [{ text: `  ${tail}`, dim: true }],
+    [{ text: `◧ ${tail}`, dim: true }],
   ]
   if (stats === 'other') return lines
   lines.push([{ text: `◈ headroom${version === undefined ? '' : `@${version}`}`, dim: true }])
