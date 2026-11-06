@@ -25,6 +25,10 @@ const GUTTER = 4 // the band's `[-]` toggle sits beside the tree
 const headroom = atom({ plugin: 'headroom-hud', key: 'headroom' } as const, null)
 const warned = atom({ plugin: 'headroom-hud', key: 'warned' } as const, false)
 const other = atom({ plugin: 'headroom-hud', key: 'other' } as const, false)
+const nudge = atom({ plugin: 'headroom-hud', key: 'nudge' } as const, false)
+const queued = atom({ plugin: 'headroom-hud', key: 'queued' } as const, null)
+
+const TOOL_ID = 'mcp__headroom-hud__compact'
 
 // The main loop's effort as its last request carried it; the session API does not expose it.
 // Also kept in the store, so the band shows it again after a reload, before the first request.
@@ -42,6 +46,7 @@ const warnContext = async ($: EngineInterface) => {
   const hasWarned = await read($, warned)
   if (pct >= COMPACT_AT && !hasWarned) {
     await update($, warned, () => true)
+    await update($, nudge, () => true)
     $.ui.toast(`◧ context ${pct}% — consider /compact`)
   } else if (pct < REARM_BELOW && hasWarned) {
     await update($, warned, () => false)
@@ -56,14 +61,26 @@ const pruneBases = async ($: EngineInterface, now: number) => {
   }
 }
 
+/** Compacts with what the model asked to keep, once no agent runs and the person agrees. */
+const runQueued = async ($: EngineInterface) => {
+  const keep = await read($, queued)
+  if (keep === null) return
+  const agents = await $.agent.list()
+  if (agents.some(a => a.status === 'running' || a.status === 'pending')) return // retried at the next turn end
+  await update($, queued, () => null)
+  const answer = await $.ui.ask(`Compact now, keeping: ${keep}?`, { options: ['Compact', 'Not now'], header: 'Compact' })
+  if (answer === 'Compact') await $.session.compact({ instructions: keep })
+}
+
 export const register: Register = on => {
   // `/compact` asks which topics to keep; any failure leaves the compaction as it was.
-  on('session.compact', { trigger: 'manual' }, async ($, e, next) => {
-    if (e.instructions) return next(e)
+  // On `command.run`: a builtin plugin's `session.compact` hook continues past the user tier.
+  on('command.run', { command: 'compact' }, async ($, e, next) => {
+    if (e.args.trim()) return next(e)
     try {
       const reply = await $.model.complete({
         model: 'haiku',
-        prompt: `List the ${MAX_TOPICS} or fewer main topics of this session as a JSON array of short labels. Reply with the JSON only.\n\n${digest(e.messages)}`,
+        prompt: `List the ${MAX_TOPICS} or fewer main topics of this session as a JSON array of short labels. Reply with the JSON only.\n\n${digest(await $.session.messages())}`,
       })
       const topics = reply.isAnswered ? parseTopics(reply.text) : undefined
       if (!topics) return next(e)
@@ -72,11 +89,28 @@ export const register: Register = on => {
         header: 'Compact',
         multiSelect: true,
       })
-      const instructions = compactInstructions(topics, answer)
-      return next(instructions ? { ...e, instructions } : e)
+      const args = compactInstructions(topics, answer)
+      return next(args ? { ...e, args } : e)
     } catch {
       return next(e)
     }
+  }).catch((_$, e, next) => next(e))
+
+  // The model knows when work is at a seam; the band knows the context fill.
+  on('tool.call', { tool: TOOL_ID }, async ($, e) => {
+    if (e.agentId !== undefined) return { deny: 'Only the main conversation can ask for a compaction.' }
+    const keep = typeof e.keep === 'string' ? e.keep.trim() : ''
+    if (!keep) return { deny: '`keep` must say what the summary keeps.' }
+    await update($, queued, () => keep)
+    return { result: 'Queued. When this turn ends, the user is asked to compact. Finish your answer.' }
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    if (e.command || e.isMeta || !(await read($, nudge))) return next(e)
+    await update($, nudge, () => false)
+    const { context } = await $.session.usage()
+    const line = `Context is ${context.percent ?? '?'}% full. At the next seam (task done, nothing half-edited), call ${TOOL_ID} with what the summary must keep.`
+    return next({ ...e, context: [...(e.context ?? []), line] })
   }).catch((_$, e, next) => next(e))
 
   on('session.start', async ($, e, next) => {
@@ -84,6 +118,20 @@ export const register: Register = on => {
     const { startedAt } = await $.session.usage()
     const baseKey = `base:${startedAt}` // per session: concurrent sessions share the store
     await pruneBases($, await $.clock.now())
+    // the band works without the tool: a failed register leaves only the toast
+    await $.tool
+      .register({
+      name: 'compact',
+      description:
+        'Queue a compaction of this conversation. Call it only at a seam (a task is done and nothing is half-edited), when context is high or the next request is unrelated. The user confirms after your turn ends.',
+      inputSchema: {
+        type: 'object',
+        properties: { keep: { type: 'string', description: 'What the summary must keep in full: open tasks, decisions, paths.' } },
+        required: ['keep'],
+      },
+      isDeferred: true,
+      })
+      .catch(() => {})
 
     // false when the proxy answered but is not headroom; undefined when it did not answer.
     const checkHealth = () =>
@@ -159,7 +207,10 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     await warnContext($)
     $.ui.invalidate('ui.render')
-    return next(e)
+    const done = await next(e)
+    // compact rejects while a turn runs: wait until this one has ended
+    if (e.agentId === undefined && e.reason === 'answer') $.clock.after(0, () => void runQueued($).catch(() => {}))
+    return done
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
