@@ -199,8 +199,8 @@ export const stack = (band: Band, room: number): Seg[][] => {
 export const rows = ({ model, level, version, context, cost, stats }: Band): Seg[][] => {
   const tail = [`${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)].filter(Boolean).join(' · ')
   const lines: Seg[][] = [
-    [{ text: `󰧑 ${level === undefined ? model : `${model} ${level}`}`, dim: true }],
     [{ text: `◧ ${tail}`, dim: true }],
+    [{ text: `󰧑 ${level === undefined ? model : `${model} ${level}`}`, dim: true }],
   ]
   if (stats === 'other') return lines
   lines.push([{ text: `◈ headroom${version === undefined ? '' : `@${version}`}`, dim: true }])
