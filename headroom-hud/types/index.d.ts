@@ -24,6 +24,8 @@ declare module 'claude-code' {
       nudge: boolean
       /** What the model asked a compaction to keep; it runs once the turn ends. */
       queued: string | null
+      /** The person closed the side pane; it stays closed until `/hud` opens it. */
+      dismissed: boolean
       /** ANTHROPIC_BASE_URL answered, but not as headroom; polling stopped. */
       other: boolean
     }

@@ -152,7 +152,7 @@ export const segments = ({ model, level, version, context, cost, stats }: Band, 
   const gauge = t.cells ? (p: number) => `${bar(p, t.cells)}  ` : () => ''
 
   return [
-    { text: `◆ ${level === undefined ? model : `${model} ${level}`} │ ◧ `, dim: true },
+    { text: `󰧑 ${level === undefined ? model : `${model} ${level}`} │ ◧ `, dim: true },
     pct === undefined
       ? { text: `${gauge(0)}–`, dim: true }
       : { text: `${gauge(pct)}${pct}%`, color: heat(pct) },
@@ -166,8 +166,8 @@ export const segments = ({ model, level, version, context, cost, stats }: Band, 
   ]
 }
 
-// Code points, not terminal cells: every glyph used is one cell wide outside CJK-ambiguous locales,
-// and `Text wrap="truncate-end"` catches an overflow elsewhere.
+// Code points, not terminal cells: every glyph used (the Nerd Font brain too) is one cell wide outside
+// CJK-ambiguous locales, and `Text wrap="truncate-end"` catches an overflow elsewhere.
 export const width = (segs: readonly Seg[]) => segs.reduce((n, g) => n + [...g.text].length, 0)
 
 /** The richest tier within `room` columns; the leanest when none fits (Text truncates it). */
@@ -175,6 +175,37 @@ export const fit = (band: Band, room: number) => {
   const all = TIERS.map(t => segments(band, t))
   return all.find(s => width(s) <= room) ?? all.at(-1) ?? []
 }
+
+const PANE_BAR = 10
+
+/** The band as lines for the side pane, one fact per line. */
+export const rows = ({ model, level, version, context, cost, stats }: Band): Seg[][] => {
+  const pct = context.percent
+  const tail = [`${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)].filter(Boolean).join(' · ')
+  const lines: Seg[][] = [
+    [{ text: `󰧑 ${level === undefined ? model : `${model} ${level}`}`, dim: true }],
+    pct === undefined
+      ? [{ text: `◧ ${bar(0, PANE_BAR)} –`, dim: true }]
+      : [{ text: '◧ ', dim: true }, { text: `${bar(pct, PANE_BAR)} ${pct}%`, color: heat(pct) }],
+    [{ text: `  ${tail}`, dim: true }],
+  ]
+  if (stats === 'other') return lines
+  lines.push([{ text: `◈ headroom${version === undefined ? '' : `@${version}`}`, dim: true }])
+  if (stats === null) return [...lines, [{ text: '  …', dim: true }]]
+  if (!stats.isReadable) return [...lines, [{ text: '  ● stats?', color: 'yellow' }]]
+  if (stats.requests === 0 && !stats.isUp) return [...lines, [{ text: '  ○ proxy down', color: 'red' }]]
+  const since = sinceStart(stats)
+  return [
+    ...lines,
+    [{ text: `  ${stats.isUp ? '●' : '○'} Δ↓${tokens(since.tokens)} ${usd(since.usd)}`, color: stats.isUp ? undefined : 'yellow' }],
+    [{ text: `    ${since.requests} requests`, dim: true }],
+    [{ text: `  Σ ↓${tokens(stats.tokensSaved)} ${usd(stats.usdSaved)} (${Math.round(stats.savingsPct)}%)`, dim: true }],
+    [{ text: `  ⛁ ${usd(stats.cacheUsd)} cache`, dim: true }],
+  ]
+}
+
+/** The narrowest dock that shows every line whole; the engine floors it at 24. */
+export const paneColumns = (lines: readonly Seg[][]) => Math.max(...lines.map(width))
 
 export const MAX_TOPICS = 4 // the ask dialog takes 2-4 options
 const DIGEST_CHARS = 24_000

@@ -15,6 +15,8 @@ import {
   parse,
   parseTopics,
   rebase,
+  paneColumns,
+  rows,
 } from './lib'
 
 const DEFAULT_PROXY = 'http://127.0.0.1:8787'
@@ -27,8 +29,11 @@ const warned = atom({ plugin: 'headroom-hud', key: 'warned' } as const, false)
 const other = atom({ plugin: 'headroom-hud', key: 'other' } as const, false)
 const nudge = atom({ plugin: 'headroom-hud', key: 'nudge' } as const, false)
 const queued = atom({ plugin: 'headroom-hud', key: 'queued' } as const, null)
+const dismissed = atom({ plugin: 'headroom-hud', key: 'dismissed' } as const, false)
 
 const TOOL_ID = 'mcp__headroom-hud__compact'
+const PANE = 'hud'
+const PAD = 1 // cells between the dock's left border and the text
 
 // The main loop's effort as its last request carried it; the session API does not expose it.
 // Also kept in the store, so the band shows it again after a reload, before the first request.
@@ -36,6 +41,8 @@ let effort: string | number | undefined
 let version: string | undefined
 // The main loop sent a request since the last poll; while idle, /stats is not fetched.
 let isStale = true
+// The dock width last asked for; the pane asks again when its widest line changes.
+let asked: number | undefined
 
 const COMPACT_AT = 75
 const REARM_BELOW = 50
@@ -58,6 +65,19 @@ const pruneBases = async ($: EngineInterface, now: number) => {
   for (const key of await $.store.keys()) {
     const at = key === 'base' ? 0 : key.startsWith('base:') ? Number(key.slice(5)) : now
     if (now - at > BASE_TTL_MS) await $.store.delete(key)
+  }
+}
+
+const band = async ($: EngineInterface): Promise<Band> => {
+  const { context, cost } = await $.session.usage()
+  const isOther = await read($, other)
+  return {
+    model: modelName(await $.session.model()),
+    level: effort ?? ((await $.store.get('effort')) as string | number | null) ?? undefined,
+    version,
+    context,
+    cost: cost?.usd,
+    stats: isOther ? 'other' : await read($, headroom),
   }
 }
 
@@ -118,6 +138,7 @@ export const register: Register = on => {
     const { startedAt } = await $.session.usage()
     const baseKey = `base:${startedAt}` // per session: concurrent sessions share the store
     await pruneBases($, await $.clock.now())
+    await $.command.register({ name: 'hud', description: 'Show or hide the headroom side pane.' }).catch(() => {})
     // the band works without the tool: a failed register leaves only the toast
     await $.tool
       .register({
@@ -213,21 +234,65 @@ export const register: Register = on => {
     return done
   })
 
+  // `/hud` toggles the side pane; asked, it is placed at any width.
+  on('command.run', { command: 'hud' }, async $ => {
+    const isOpen = (await $.ui.panes()).some(p => p.id === PANE)
+    if (isOpen) {
+      await $.ui.close({ id: PANE })
+      await update($, dismissed, () => true)
+    } else {
+      await update($, dismissed, () => false)
+      await $.ui.open({ id: PANE, title: 'Headroom' })
+    }
+    $.ui.invalidate('ui.render')
+    return { text: isOpen ? 'headroom pane closed' : 'headroom pane open' }
+  })
+
+  on('ui.close', { id: PANE }, async ($, e, next) => {
+    if (e.origin.kind === 'person') await update($, dismissed, () => true)
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const lines = rows(await band($))
+    const need = paneColumns(lines) + PAD
+    // an open of an open id resizes the dock; a width the person dragged to still wins
+    if (e.props.placement === 'dock' && need !== asked) {
+      asked = need
+      void $.ui.open({ id: PANE, title: 'Headroom', columns: need }).catch(() => {})
+    }
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column" paddingLeft={PAD}>
+        {lines.map((line, i) => (
+          <Text key={`${i}`} wrap="truncate-end">
+            {line.map((g, j) => (
+              <Text key={`${j}`} color={g.color} dimColor={g.dim}>
+                {g.text}
+              </Text>
+            ))}
+          </Text>
+        ))}
+      </Box>
+    )
+  })
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
 
-    const { context, cost } = await $.session.usage()
-    const isOther = await read($, other)
-    const data: Band = {
-      model: modelName(await $.session.model()),
-      level: effort ?? ((await $.store.get('effort')) as string | number | null) ?? undefined,
-      version,
-      context,
-      cost: cost?.usd,
-      stats: isOther ? 'other' : await read($, headroom),
+    const pane = (await $.ui.panes()).find(p => p.id === PANE)
+    // Unasked, the engine places the pane only from 144 columns, so it docks only with room to spare.
+    if (!pane && e.viewport?.isFullscreen === true && !(await read($, dismissed))) {
+      void $.ui
+        .open({ id: PANE, title: 'Headroom' })
+        .then(() => $.ui.invalidate('ui.render'))
+        .catch(() => {})
     }
+    if (pane?.isPlaced && pane.isShown) return next(e)
+
     const room = (e.viewport?.columns ?? Infinity) - GUTTER
-    const segs = fit(data, room)
+    const segs = fit(await band($), room)
     const { Box, Text } = $.ui.resolve(e)
 
     return (
