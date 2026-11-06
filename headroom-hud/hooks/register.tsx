@@ -93,7 +93,12 @@ const runQueued = async ($: EngineInterface) => {
   if (agents.some(a => a.status === 'running' || a.status === 'pending')) return // retried at the next turn end
   await update($, queued, () => null)
   const answer = await $.ui.ask(`Compact now, keeping: ${keep}?`, { options: ['Compact', 'Not now'], header: 'Compact' })
-  if (answer === 'Compact') await $.session.compact({ instructions: keep })
+  // `ui.ask` rejects on dismissal, a decline; `session.compact` rejects while a turn runs, so queue it again
+  if (answer === 'Compact')
+    await $.session.compact({ instructions: keep }).catch(async () => {
+      await update($, queued, () => keep)
+      $.ui.toast('◧ compaction failed; asking again after the next turn')
+    })
 }
 
 /** Cells the compact button takes after a row: the gap, then the icon. */
