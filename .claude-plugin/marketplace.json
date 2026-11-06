@@ -33,7 +33,7 @@
       "name": "headroom-hud",
       "source": "./headroom-hud",
       "description": "Band above the prompt: context-window gauge, session cost and headroom proxy savings.",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "author": {
         "name": "Alan R. Soares"
       },

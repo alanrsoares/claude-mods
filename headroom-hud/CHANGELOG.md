@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.3.0...headroom-hud-v0.4.0) (2026-11-06)
+
+
+### Features
+
+* **headroom-hud:** lighter, per-session polling ([56887c9](https://github.com/alanrsoares/claude-mods/commit/56887c99de9eaf2cd9dad778809c7751a72972a8))
+* **headroom-hud:** side pane and compaction tool ([#5](https://github.com/alanrsoares/claude-mods/issues/5)) ([d3a4c49](https://github.com/alanrsoares/claude-mods/commit/d3a4c49f3e0f57521650d0748a0557c8ee639de7))
+
 ## [0.3.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.2.0...headroom-hud-v0.3.0) (2026-11-04)
 
 
