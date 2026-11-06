@@ -42,7 +42,7 @@ const FRAME_MS = 120
 /** The spinner frame; undefined while no main turn runs. */
 let frame: number | undefined
 let spinner: Timer | undefined
-const COMPACT = '\uf066' // nf-fa-compress
+const COMPACT = '[compact]'
 const PAD = 1 // cells between the dock's borders and the text, each side
 
 // The main loop's effort as its last request carried it; the session API does not expose it.
@@ -108,13 +108,35 @@ const runQueued = async ($: EngineInterface) => {
     })
 }
 
-/** Cells the compact button takes after a row: the gap, then the icon. */
-const BUTTON_CELLS = 2
+/** Asks which topics a compaction keeps, as instructions; '' when the model gives no topics. Rejects on dismissal. */
+const pickKeep = async ($: EngineInterface) => {
+  const reply = await $.model.complete({
+    model: 'haiku',
+    prompt: `List the ${MAX_TOPICS} or fewer main topics of this session as a JSON array of short labels. Reply with the JSON only.\n\n${digest(await $.session.messages())}`,
+  })
+  const topics = reply.isAnswered ? parseTopics(reply.text) : undefined
+  if (!topics) return ''
+  const answer = await $.ui.ask('Which topics must the compaction keep?', { options: topics, header: 'Compact', multiSelect: true })
+  return compactInstructions(topics, answer)
+}
+
+// The engine skips this plugin's own `command.run` hook for a run it starts, so the button asks here.
+const compactNow = async ($: EngineInterface) => {
+  const instructions = await pickKeep($).catch(() => '')
+  await $.session.compact(instructions ? { instructions } : {})
+}
+
+const pressCompact = ($: EngineInterface) => () =>
+  void compactNow($).catch((err: unknown) => $.ui.toast(`◧ compaction failed: ${err instanceof Error ? err.message : err}`))
+
+/** Cells the compact button takes after a row: the gap, then the label. */
+const BUTTON_CELLS = 1 + COMPACT.length
 
 /** The band as the strip: one row, or two before it drops facts; the first row ends in the compact button. */
 const strip = (
   { Box, Button, Text }: Pick<ReturnType<EngineInterface['ui']['resolve']>, 'Box' | 'Button' | 'Text'>,
   lines: Seg[][],
+  pct: number | undefined,
   onCompact: () => void,
 ) => (
   <Box flexDirection="column">
@@ -127,7 +149,11 @@ const strip = (
             </Text>
           ))}
         </Text>
-        {i === 0 && <Button key="compact" plain dimColor label={COMPACT} onPress={onCompact} />}
+        {i === 0 && <Button key="compact" plain label={COMPACT} onPress={onCompact}>
+          <Text color={pct === undefined ? undefined : heat(pct)} dimColor={pct === undefined}>
+            {COMPACT}
+          </Text>
+        </Button>}
       </Box>
     ))}
   </Box>
@@ -138,23 +164,8 @@ export const register: Register = on => {
   // On `command.run`: a builtin plugin's `session.compact` hook continues past the user tier.
   on('command.run', { command: 'compact' }, async ($, e, next) => {
     if (e.args.trim()) return next(e)
-    try {
-      const reply = await $.model.complete({
-        model: 'haiku',
-        prompt: `List the ${MAX_TOPICS} or fewer main topics of this session as a JSON array of short labels. Reply with the JSON only.\n\n${digest(await $.session.messages())}`,
-      })
-      const topics = reply.isAnswered ? parseTopics(reply.text) : undefined
-      if (!topics) return next(e)
-      const answer = await $.ui.ask('Which topics must the compaction keep?', {
-        options: topics,
-        header: 'Compact',
-        multiSelect: true,
-      })
-      const args = compactInstructions(topics, answer)
-      return next(args ? { ...e, args } : e)
-    } catch {
-      return next(e)
-    }
+    const args = await pickKeep($).catch(() => '')
+    return next(args ? { ...e, args } : e)
   }).catch((_$, e, next) => next(e))
 
   // The model knows when work is at a seam; the band knows the context fill.
@@ -313,10 +324,10 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     // inline above the prompt the pane has the width, not the height: draw the strip
-    const compact = () => void $.command.run({ command: 'compact' }).catch(() => {})
-    if (e.props.placement === 'inline')
-      return strip($.ui.resolve(e), stack(await band($), e.props.bodyColumns - BUTTON_CELLS), compact)
+    const compact = pressCompact($)
     const b = await band($)
+    if (e.props.placement === 'inline')
+      return strip($.ui.resolve(e), stack(b, e.props.bodyColumns - BUTTON_CELLS), b.context.percent, compact)
     const lines = rows(b)
     const pct = b.context.percent
     const pctText = pct === undefined ? '–' : `${pct}%`
@@ -339,8 +350,11 @@ export const register: Register = on => {
           <Text color={color} dimColor={pct === undefined}>
             {pctText}
           </Text>
-          {/* runs `/compact` through its hooks, so the topic picker asks first */}
-          <Button key="compact" plain dimColor label={COMPACT} onPress={compact} />
+          <Button key="compact" plain label={COMPACT} onPress={compact}>
+          <Text color={pct === undefined ? undefined : heat(pct)} dimColor={pct === undefined}>
+            {COMPACT}
+          </Text>
+        </Button>
         </Box>
         {/* the context gauge, one cell short of the pane's right padding */}
         <Text key="gauge" color={color} dimColor={pct === undefined}>
@@ -372,8 +386,8 @@ export const register: Register = on => {
     }
     if (pane?.isPlaced && pane.isShown) return next(e)
 
-    // runs `/compact` through its hooks, so the topic picker asks first
-    const compact = () => void $.command.run({ command: 'compact' }).catch(() => {})
-    return strip($.ui.resolve(e), stack(await band($), e.props.bodyColumns - BUTTON_CELLS), compact)
+    const compact = pressCompact($)
+    const b = await band($)
+    return strip($.ui.resolve(e), stack(b, e.props.bodyColumns - BUTTON_CELLS), b.context.percent, compact)
   })
 }
