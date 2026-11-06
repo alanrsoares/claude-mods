@@ -4,27 +4,40 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { Headroom, Totals } from '../types'
 import {
   type Band,
+  type Seg,
   DOWN,
+  bar,
   MAX_TOPICS,
   UNREADABLE,
   compactInstructions,
   digest,
-  fit,
   health,
   modelName,
+  heat,
   parse,
   parseTopics,
   rebase,
+  paneColumns,
+  rows,
+  stack,
 } from './lib'
 
 const DEFAULT_PROXY = 'http://127.0.0.1:8787'
 const POLL_MS = 15_000
 const BASE_TTL_MS = 7 * 24 * 3600_000 // a saved baseline outlives its session by this much
-const GUTTER = 4 // the band's `[-]` toggle sits beside the tree
 
 const headroom = atom({ plugin: 'headroom-hud', key: 'headroom' } as const, null)
 const warned = atom({ plugin: 'headroom-hud', key: 'warned' } as const, false)
 const other = atom({ plugin: 'headroom-hud', key: 'other' } as const, false)
+const nudge = atom({ plugin: 'headroom-hud', key: 'nudge' } as const, false)
+const queued = atom({ plugin: 'headroom-hud', key: 'queued' } as const, null)
+const dismissed = atom({ plugin: 'headroom-hud', key: 'dismissed' } as const, false)
+
+const TOOL_ID = 'mcp__headroom-hud__compact'
+const PANE = 'hud'
+const TITLE = ' ◈ HEADROOM '
+const COMPACT = '\uf066' // nf-fa-compress
+const PAD = 1 // cells between the dock's borders and the text, each side
 
 // The main loop's effort as its last request carried it; the session API does not expose it.
 // Also kept in the store, so the band shows it again after a reload, before the first request.
@@ -32,6 +45,8 @@ let effort: string | number | undefined
 let version: string | undefined
 // The main loop sent a request since the last poll; while idle, /stats is not fetched.
 let isStale = true
+// The dock width last asked for; the pane asks again when its widest line changes.
+let asked: number | undefined
 
 const COMPACT_AT = 75
 const REARM_BELOW = 50
@@ -42,6 +57,7 @@ const warnContext = async ($: EngineInterface) => {
   const hasWarned = await read($, warned)
   if (pct >= COMPACT_AT && !hasWarned) {
     await update($, warned, () => true)
+    await update($, nudge, () => true)
     $.ui.toast(`◧ context ${pct}% — consider /compact`)
   } else if (pct < REARM_BELOW && hasWarned) {
     await update($, warned, () => false)
@@ -56,14 +72,69 @@ const pruneBases = async ($: EngineInterface, now: number) => {
   }
 }
 
+const band = async ($: EngineInterface): Promise<Band> => {
+  const { context, cost } = await $.session.usage()
+  const isOther = await read($, other)
+  return {
+    model: modelName(await $.session.model()),
+    level: effort ?? ((await $.store.get('effort')) as string | number | null) ?? undefined,
+    version,
+    context,
+    cost: cost?.usd,
+    stats: isOther ? 'other' : await read($, headroom),
+  }
+}
+
+/** Compacts with what the model asked to keep, once no agent runs and the person agrees. */
+const runQueued = async ($: EngineInterface) => {
+  const keep = await read($, queued)
+  if (keep === null) return
+  const agents = await $.agent.list()
+  if (agents.some(a => a.status === 'running' || a.status === 'pending')) return // retried at the next turn end
+  await update($, queued, () => null)
+  const answer = await $.ui.ask(`Compact now, keeping: ${keep}?`, { options: ['Compact', 'Not now'], header: 'Compact' })
+  // `ui.ask` rejects on dismissal, a decline; `session.compact` rejects while a turn runs, so queue it again
+  if (answer === 'Compact')
+    await $.session.compact({ instructions: keep }).catch(async () => {
+      await update($, queued, () => keep)
+      $.ui.toast('◧ compaction failed; asking again after the next turn')
+    })
+}
+
+/** Cells the compact button takes after a row: the gap, then the icon. */
+const BUTTON_CELLS = 2
+
+/** The band as the strip: one row, or two before it drops facts; the first row ends in the compact button. */
+const strip = (
+  { Box, Button, Text }: Pick<ReturnType<EngineInterface['ui']['resolve']>, 'Box' | 'Button' | 'Text'>,
+  lines: Seg[][],
+  onCompact: () => void,
+) => (
+  <Box flexDirection="column">
+    {lines.map((segs, i) => (
+      <Box key={`${i}`} flexDirection="row" gap={1}>
+        <Text wrap="truncate-end">
+          {segs.map((g, j) => (
+            <Text key={`${j}`} color={g.color} dimColor={g.dim}>
+              {g.text}
+            </Text>
+          ))}
+        </Text>
+        {i === 0 && <Button key="compact" plain dimColor label={COMPACT} onPress={onCompact} />}
+      </Box>
+    ))}
+  </Box>
+)
+
 export const register: Register = on => {
   // `/compact` asks which topics to keep; any failure leaves the compaction as it was.
-  on('session.compact', { trigger: 'manual' }, async ($, e, next) => {
-    if (e.instructions) return next(e)
+  // On `command.run`: a builtin plugin's `session.compact` hook continues past the user tier.
+  on('command.run', { command: 'compact' }, async ($, e, next) => {
+    if (e.args.trim()) return next(e)
     try {
       const reply = await $.model.complete({
         model: 'haiku',
-        prompt: `List the ${MAX_TOPICS} or fewer main topics of this session as a JSON array of short labels. Reply with the JSON only.\n\n${digest(e.messages)}`,
+        prompt: `List the ${MAX_TOPICS} or fewer main topics of this session as a JSON array of short labels. Reply with the JSON only.\n\n${digest(await $.session.messages())}`,
       })
       const topics = reply.isAnswered ? parseTopics(reply.text) : undefined
       if (!topics) return next(e)
@@ -72,11 +143,28 @@ export const register: Register = on => {
         header: 'Compact',
         multiSelect: true,
       })
-      const instructions = compactInstructions(topics, answer)
-      return next(instructions ? { ...e, instructions } : e)
+      const args = compactInstructions(topics, answer)
+      return next(args ? { ...e, args } : e)
     } catch {
       return next(e)
     }
+  }).catch((_$, e, next) => next(e))
+
+  // The model knows when work is at a seam; the band knows the context fill.
+  on('tool.call', { tool: TOOL_ID }, async ($, e) => {
+    if (e.agentId !== undefined) return { deny: 'Only the main conversation can ask for a compaction.' }
+    const keep = typeof e.keep === 'string' ? e.keep.trim() : ''
+    if (!keep) return { deny: '`keep` must say what the summary keeps.' }
+    await update($, queued, () => keep)
+    return { result: 'Queued. When this turn ends, the user is asked to compact. Finish your answer.' }
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    if (e.command || e.isMeta || !(await read($, nudge))) return next(e)
+    await update($, nudge, () => false)
+    const { context } = await $.session.usage()
+    const line = `Context is ${context.percent ?? '?'}% full. At the next seam (task done, nothing half-edited), call ${TOOL_ID} with what the summary must keep.`
+    return next({ ...e, context: [...(e.context ?? []), line] })
   }).catch((_$, e, next) => next(e))
 
   on('session.start', async ($, e, next) => {
@@ -84,6 +172,21 @@ export const register: Register = on => {
     const { startedAt } = await $.session.usage()
     const baseKey = `base:${startedAt}` // per session: concurrent sessions share the store
     await pruneBases($, await $.clock.now())
+    await $.command.register({ name: 'hud', description: 'Show or hide the headroom side pane.' }).catch(() => {})
+    // the band works without the tool: a failed register leaves only the toast
+    await $.tool
+      .register({
+      name: 'compact',
+      description:
+        'Queue a compaction of this conversation. Call it only at a seam (a task is done and nothing is half-edited), when context is high or the next request is unrelated. The user confirms after your turn ends.',
+      inputSchema: {
+        type: 'object',
+        properties: { keep: { type: 'string', description: 'What the summary must keep in full: open tasks, decisions, paths.' } },
+        required: ['keep'],
+      },
+      isDeferred: true,
+      })
+      .catch(() => {})
 
     // false when the proxy answered but is not headroom; undefined when it did not answer.
     const checkHealth = () =>
@@ -159,36 +262,95 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     await warnContext($)
     $.ui.invalidate('ui.render')
+    const done = await next(e)
+    // compact rejects while a turn runs: wait until this one has ended
+    if (e.agentId === undefined && e.reason === 'answer') $.clock.after(0, () => void runQueued($).catch(() => {}))
+    return done
+  })
+
+  // `/hud` toggles the side pane; asked, it is placed at any width.
+  on('command.run', { command: 'hud' }, async $ => {
+    const isOpen = (await $.ui.panes()).some(p => p.id === PANE)
+    if (isOpen) {
+      await $.ui.close({ id: PANE })
+      await update($, dismissed, () => true)
+    } else {
+      await update($, dismissed, () => false)
+      await $.ui.open({ id: PANE, title: 'Headroom' })
+    }
+    $.ui.invalidate('ui.render')
+    return { text: isOpen ? 'headroom pane closed' : 'headroom pane open' }
+  })
+
+  on('ui.close', { id: PANE }, async ($, e, next) => {
+    if (e.origin.kind === 'person') await update($, dismissed, () => true)
+    $.ui.invalidate('ui.render')
     return next(e)
+  })
+
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    // inline above the prompt the pane has the width, not the height: draw the strip
+    const compact = () => void $.command.run({ command: 'compact' }).catch(() => {})
+    if (e.props.placement === 'inline')
+      return strip($.ui.resolve(e), stack(await band($), e.props.bodyColumns - BUTTON_CELLS), compact)
+    const b = await band($)
+    const lines = rows(b)
+    const pct = b.context.percent
+    const pctText = pct === undefined ? '–' : `${pct}%`
+    // the title row: badge, percent and compact button, gap 1 between each
+    const need = Math.max(paneColumns(lines), [...TITLE].length + 1 + pctText.length + BUTTON_CELLS) + 2 * PAD
+    // an open of an open id resizes the dock; a width the person dragged to still wins
+    if (e.props.placement === 'dock' && need !== asked) {
+      asked = need
+      void $.ui.open({ id: PANE, title: 'Headroom', columns: need }).catch(() => {})
+    }
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const color = pct === undefined ? undefined : heat(pct)
+    return (
+      <Box flexDirection="column" paddingX={PAD}>
+        {/* the engine draws no tab title for a lone pane */}
+        <Box key="title" flexDirection="row" gap={1}>
+          <Text backgroundColor="cyan" color="black" weight="bold">
+            {TITLE}
+          </Text>
+          <Text color={color} dimColor={pct === undefined}>
+            {pctText}
+          </Text>
+          {/* runs `/compact` through its hooks, so the topic picker asks first */}
+          <Button key="compact" plain dimColor label={COMPACT} onPress={compact} />
+        </Box>
+        {/* the context gauge, one cell short of the pane's right padding */}
+        <Text key="gauge" color={color} dimColor={pct === undefined}>
+          {bar(pct ?? 0, Math.max(0, e.props.bodyColumns - 2 * PAD - 1))}
+        </Text>
+        {lines.map((segs, i) => (
+          <Text key={`${i}`} wrap="truncate-end">
+            {segs.map((g, j) => (
+              <Text key={`${j}`} color={g.color} dimColor={g.dim}>
+                {g.text}
+              </Text>
+            ))}
+          </Text>
+        ))}
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
 
-    const { context, cost } = await $.session.usage()
-    const isOther = await read($, other)
-    const data: Band = {
-      model: modelName(await $.session.model()),
-      level: effort ?? ((await $.store.get('effort')) as string | number | null) ?? undefined,
-      version,
-      context,
-      cost: cost?.usd,
-      stats: isOther ? 'other' : await read($, headroom),
+    const pane = (await $.ui.panes()).find(p => p.id === PANE)
+    // Unasked, the engine places the pane only from 144 columns, so it docks only with room to spare.
+    if (!pane && e.viewport?.isFullscreen === true && !(await read($, dismissed))) {
+      void $.ui
+        .open({ id: PANE, title: 'Headroom' })
+        .then(() => $.ui.invalidate('ui.render'))
+        .catch(() => {})
     }
-    const room = (e.viewport?.columns ?? Infinity) - GUTTER
-    const segs = fit(data, room)
-    const { Box, Text } = $.ui.resolve(e)
+    if (pane?.isPlaced && pane.isShown) return next(e)
 
-    return (
-      <Box>
-        <Text wrap="truncate-end">
-          {segs.map((g, i) => (
-            <Text key={`${i}`} color={g.color} dimColor={g.dim}>
-              {g.text}
-            </Text>
-          ))}
-        </Text>
-      </Box>
-    )
+    // runs `/compact` through its hooks, so the topic picker asks first
+    const compact = () => void $.command.run({ command: 'compact' }).catch(() => {})
+    return strip($.ui.resolve(e), stack(await band($), e.props.bodyColumns - BUTTON_CELLS), compact)
   })
 }

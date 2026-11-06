@@ -54,3 +54,57 @@ test('headroom is polled once, and the legacy shared baseline is dropped', async
   expect(keys).toEqual(['base'])
   expect((state.headroom as { requests: number }).requests).toBe(7)
 })
+
+const turn = { answer: 'x', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as const
+const usage = (percent: number) => () => ({
+  value: { startedAt: 1, context: { percent, window: 200_000 }, rateLimits: [] },
+})
+
+const compactions = (on: Parameters<TestBody>[1], answer: string) => {
+  const kept: (string | undefined)[] = []
+  on('turn.complete', () => ({ text: 'done' }))
+  on('session.usage', usage(10))
+  on('agent.list', () => ({ value: [] }))
+  on('clock.after', () => ({ value: undefined }))
+  on('tool.call', { tool: 'AskUserQuestion' }, (_, e) => ({
+    result: { questions: e.questions, answers: { [e.questions[0]!.question]: answer } },
+  }))
+  on('session.compact', (_, e) => {
+    kept.push(e.instructions)
+    return { skip: 'test' }
+  })
+  return kept
+}
+
+test('a compaction the model queues runs after the turn, once the person agrees', async ($, on) => {
+  const kept = compactions(on, 'Compact')
+  const out = await $.tool.call({ tool: 'mcp__headroom-hud__compact', keep: 'the open issues' })
+  expect(out.deny).toBeUndefined()
+  expect(kept).toEqual([])
+  await $.turn.complete(turn)
+  await new Promise<void>(r => setTimeout(r, 50))
+  expect(kept).toEqual(['the open issues'])
+  await $.turn.complete(turn)
+  await new Promise<void>(r => setTimeout(r, 50))
+  expect(kept).toEqual(['the open issues'])
+})
+
+test('a declined or empty compaction does not run', async ($, on) => {
+  const kept = compactions(on, 'Not now')
+  expect((await $.tool.call({ tool: 'mcp__headroom-hud__compact', keep: ' ' })).deny).toContain('keep')
+  await $.tool.call({ tool: 'mcp__headroom-hud__compact', keep: 'x' })
+  await $.turn.complete(turn)
+  await new Promise<void>(r => setTimeout(r, 50))
+  expect(kept).toEqual([])
+})
+
+test('the model hears once that context crossed 75%', async ($, on) => {
+  on('turn.complete', () => ({ text: 'done' }))
+  on('session.usage', usage(80))
+  on('ui.toast', () => ({ value: undefined }))
+  on('prompt.submit', (_, e) => ({ text: e.text, context: e.context }))
+  await $.turn.complete(turn)
+  const submit = () => $.prompt.submit({ text: 'next', wait: false, origin: { kind: 'composer' } })
+  expect((await submit()).context?.join('')).toContain('80% full')
+  expect((await submit()).context).toBeUndefined()
+})
