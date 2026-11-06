@@ -107,6 +107,8 @@ export type Band = {
   cost: number | undefined
   /** 'other': ANTHROPIC_BASE_URL is not a headroom proxy, so the band leaves the proxy out. */
   stats: Headroom | null | 'other'
+  /** A spinner frame while the main turn runs. */
+  spin?: string
 }
 
 export type Seg = { text: string; color?: string; dim?: true }
@@ -122,8 +124,8 @@ export const TIERS = [
 
 type Tier = (typeof TIERS)[number]
 
-const proxySegs = (stats: Headroom | null, t: Tier): Seg[] => {
-  if (stats === null) return [{ text: '…', dim: true }]
+const proxySegs = (stats: Headroom | null, t: Tier, spin?: string): Seg[] => {
+  if (stats === null) return [{ text: spin ?? '…', dim: true }]
   if (!stats.isReadable) return [{ text: '● stats?', color: 'yellow' }]
   if (stats.requests === 0 && !stats.isUp) return [{ text: '○ proxy down', color: 'red' }]
   const color = stats.isUp ? undefined : 'yellow'
@@ -145,7 +147,7 @@ const proxySegs = (stats: Headroom | null, t: Tier): Seg[] => {
 }
 
 /** The band's two halves: the model and context, then the proxy (empty for another proxy). */
-const halves = ({ model, level, version, context, cost, stats }: Band, t: Tier): [Seg[], Seg[]] => {
+const halves = ({ model, level, version, context, cost, stats, spin }: Band, t: Tier): [Seg[], Seg[]] => {
   const pct = context.percent
   const tail = [t.tokens && `${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)]
     .filter(Boolean)
@@ -163,8 +165,8 @@ const halves = ({ model, level, version, context, cost, stats }: Band, t: Tier):
     stats === 'other'
       ? []
       : [
-          { text: `◈ ${t.version && version !== undefined ? `headroom@${version} ` : ''}`, dim: true as const },
-          ...proxySegs(stats, t),
+          { text: `${spin ?? '◈'} ${t.version && version !== undefined ? `headroom@${version} ` : ''}`, dim: true as const },
+          ...proxySegs(stats, t, spin),
         ],
   ]
 }
@@ -196,7 +198,7 @@ export const stack = (band: Band, room: number): Seg[][] => {
 }
 
 /** The band as lines for the side pane, one fact per line; the pane's header draws the context percent and bar. */
-export const rows = ({ model, level, version, context, cost, stats }: Band): Seg[][] => {
+export const rows = ({ model, level, version, context, cost, stats, spin }: Band): Seg[][] => {
   const tail = [`${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)].filter(Boolean).join(' · ')
   const lines: Seg[][] = [
     [{ text: `◧ ${tail}`, dim: true }],
@@ -204,7 +206,7 @@ export const rows = ({ model, level, version, context, cost, stats }: Band): Seg
   ]
   if (stats === 'other') return lines
   lines.push([{ text: `◈ headroom${version === undefined ? '' : `@${version}`}`, dim: true }])
-  if (stats === null) return [...lines, [{ text: '  …', dim: true }]]
+  if (stats === null) return [...lines, [{ text: `  ${spin ?? '…'}`, dim: true }]]
   if (!stats.isReadable) return [...lines, [{ text: '  ● stats?', color: 'yellow' }]]
   if (stats.requests === 0 && !stats.isUp) return [...lines, [{ text: '  ○ proxy down', color: 'red' }]]
   const since = sinceStart(stats)

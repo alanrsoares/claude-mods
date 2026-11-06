@@ -96,3 +96,8 @@ test('health tells headroom from another proxy', async () => {
 test('a proxy that is not headroom leaves the band', async () => {
   expect(fit({ ...BAND, stats: 'other' }, 500).some(g => g.text.includes('◈'))).toBe(false)
 })
+
+test('a spinner frame takes the proxy glyph and the pending dots', async () => {
+  expect(segments({ ...BAND, spin: '◆' }, TIERS[0]).some(g => g.text.startsWith('◆ '))).toBe(true)
+  expect(rows({ ...BAND, stats: null, spin: '◆' }).at(-1)?.[0]?.text).toBe('  ◆')
+})

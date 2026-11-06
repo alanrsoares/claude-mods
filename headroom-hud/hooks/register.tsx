@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Headroom, Totals } from '../types'
 import {
@@ -36,6 +36,12 @@ const dismissed = atom({ plugin: 'headroom-hud', key: 'dismissed' } as const, fa
 const TOOL_ID = 'mcp__headroom-hud__compact'
 const PANE = 'hud'
 const TITLE = ' ◈ HEADROOM '
+// Claude Code's own spinner glyphs, out and back
+const SPIN = [...'·✢✳✶✻✶✳✢']
+const FRAME_MS = 120
+/** The spinner frame; undefined while no main turn runs. */
+let frame: number | undefined
+let spinner: Timer | undefined
 const COMPACT = '\uf066' // nf-fa-compress
 const PAD = 1 // cells between the dock's borders and the text, each side
 
@@ -82,6 +88,7 @@ const band = async ($: EngineInterface): Promise<Band> => {
     context,
     cost: cost?.usd,
     stats: isOther ? 'other' : await read($, headroom),
+    spin: frame === undefined ? undefined : SPIN[frame % SPIN.length],
   }
 }
 
@@ -259,7 +266,23 @@ export const register: Register = on => {
     return yield* next(e)
   })
 
+  on('turn.start', ($, e, next) => {
+    if (e.agentId === undefined && spinner === undefined) {
+      frame = 0
+      spinner = $.clock.every(FRAME_MS, () => {
+        frame = (frame ?? 0) + 1
+        $.ui.invalidate('ui.render')
+      })
+    }
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
+    if (e.agentId === undefined) {
+      spinner?.cancel()
+      spinner = undefined
+      frame = undefined
+    }
     await warnContext($)
     $.ui.invalidate('ui.render')
     const done = await next(e)
@@ -311,7 +334,7 @@ export const register: Register = on => {
         {/* the engine draws no tab title for a lone pane */}
         <Box key="title" flexDirection="row" gap={1}>
           <Text backgroundColor="cyan" color="black" weight="bold">
-            {TITLE}
+            {TITLE.replace('◈', b.spin ?? '◈')}
           </Text>
           <Text color={color} dimColor={pct === undefined}>
             {pctText}
