@@ -144,7 +144,8 @@ const proxySegs = (stats: Headroom | null, t: Tier): Seg[] => {
   ]
 }
 
-export const segments = ({ model, level, version, context, cost, stats }: Band, t: Tier): Seg[] => {
+/** The band's two halves: the model and context, then the proxy (empty for another proxy). */
+const halves = ({ model, level, version, context, cost, stats }: Band, t: Tier): [Seg[], Seg[]] => {
   const pct = context.percent
   const tail = [t.tokens && `${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)]
     .filter(Boolean)
@@ -152,18 +153,25 @@ export const segments = ({ model, level, version, context, cost, stats }: Band, 
   const gauge = t.cells ? (p: number) => `${bar(p, t.cells)}  ` : () => ''
 
   return [
-    { text: `󰧑 ${level === undefined ? model : `${model} ${level}`} │ ◧ `, dim: true },
-    pct === undefined
-      ? { text: `${gauge(0)}–`, dim: true }
-      : { text: `${gauge(pct)}${pct}%`, color: heat(pct) },
-    { text: tail && ` ${tail}`, dim: true },
-    ...(stats === 'other'
+    [
+      { text: `󰧑 ${level === undefined ? model : `${model} ${level}`} │ ◧ `, dim: true },
+      pct === undefined
+        ? { text: `${gauge(0)}–`, dim: true }
+        : { text: `${gauge(pct)}${pct}%`, color: heat(pct) },
+      { text: tail && ` ${tail}`, dim: true },
+    ],
+    stats === 'other'
       ? []
       : [
-          { text: ` │ ◈ ${t.version && version !== undefined ? `headroom@${version} ` : ''}`, dim: true as const },
+          { text: `◈ ${t.version && version !== undefined ? `headroom@${version} ` : ''}`, dim: true as const },
           ...proxySegs(stats, t),
-        ]),
+        ],
   ]
+}
+
+export const segments = (band: Band, t: Tier): Seg[] => {
+  const [head, proxy] = halves(band, t)
+  return proxy.length ? [...head, { text: ' │ ', dim: true }, ...proxy] : head
 }
 
 // Code points, not terminal cells: every glyph used (the Nerd Font brain too) is one cell wide outside
@@ -174,6 +182,17 @@ export const width = (segs: readonly Seg[]) => segs.reduce((n, g) => n + [...g.t
 export const fit = (band: Band, room: number) => {
   const all = TIERS.map(t => segments(band, t))
   return all.find(s => width(s) <= room) ?? all.at(-1) ?? []
+}
+
+/** The band in one row, or in two (model and context, then the proxy) before a leaner tier drops facts. */
+export const stack = (band: Band, room: number): Seg[][] => {
+  for (const t of TIERS) {
+    const one = segments(band, t)
+    if (width(one) <= room) return [one]
+    const two = halves(band, t).filter(h => h.length)
+    if (two.every(h => width(h) <= room)) return two
+  }
+  return [fit(band, room)]
 }
 
 const PANE_BAR = 10

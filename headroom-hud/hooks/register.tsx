@@ -4,12 +4,12 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { Headroom, Totals } from '../types'
 import {
   type Band,
+  type Seg,
   DOWN,
   MAX_TOPICS,
   UNREADABLE,
   compactInstructions,
   digest,
-  fit,
   health,
   modelName,
   parse,
@@ -17,12 +17,12 @@ import {
   rebase,
   paneColumns,
   rows,
+  stack,
 } from './lib'
 
 const DEFAULT_PROXY = 'http://127.0.0.1:8787'
 const POLL_MS = 15_000
 const BASE_TTL_MS = 7 * 24 * 3600_000 // a saved baseline outlives its session by this much
-const GUTTER = 4 // the band's `[-]` toggle sits beside the tree
 
 const headroom = atom({ plugin: 'headroom-hud', key: 'headroom' } as const, null)
 const warned = atom({ plugin: 'headroom-hud', key: 'warned' } as const, false)
@@ -33,7 +33,9 @@ const dismissed = atom({ plugin: 'headroom-hud', key: 'dismissed' } as const, fa
 
 const TOOL_ID = 'mcp__headroom-hud__compact'
 const PANE = 'hud'
-const PAD = 1 // cells between the dock's left border and the text
+const GAUGE_LINE = 1 // `rows`' context bar
+const COMPACT = '\uf066' // nf-fa-compress
+const PAD = 1 // cells between the dock's borders and the text, each side
 
 // The main loop's effort as its last request carried it; the session API does not expose it.
 // Also kept in the store, so the band shows it again after a reload, before the first request.
@@ -91,6 +93,31 @@ const runQueued = async ($: EngineInterface) => {
   const answer = await $.ui.ask(`Compact now, keeping: ${keep}?`, { options: ['Compact', 'Not now'], header: 'Compact' })
   if (answer === 'Compact') await $.session.compact({ instructions: keep })
 }
+
+/** Cells the compact button takes after a row: the gap, then the icon. */
+const BUTTON_CELLS = 2
+
+/** The band as the strip: one row, or two before it drops facts; the first row ends in the compact button. */
+const strip = (
+  { Box, Button, Text }: Pick<ReturnType<EngineInterface['ui']['resolve']>, 'Box' | 'Button' | 'Text'>,
+  lines: Seg[][],
+  onCompact: () => void,
+) => (
+  <Box flexDirection="column">
+    {lines.map((segs, i) => (
+      <Box key={`${i}`} flexDirection="row" gap={1}>
+        <Text wrap="truncate-end">
+          {segs.map((g, j) => (
+            <Text key={`${j}`} color={g.color} dimColor={g.dim}>
+              {g.text}
+            </Text>
+          ))}
+        </Text>
+        {i === 0 && <Button key="compact" plain dimColor label={COMPACT} onPress={onCompact} />}
+      </Box>
+    ))}
+  </Box>
+)
 
 export const register: Register = on => {
   // `/compact` asks which topics to keep; any failure leaves the compaction as it was.
@@ -255,25 +282,41 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    // inline above the prompt the pane has the width, not the height: draw the strip
+    const compact = () => void $.command.run({ command: 'compact' }).catch(() => {})
+    if (e.props.placement === 'inline')
+      return strip($.ui.resolve(e), stack(await band($), e.props.bodyColumns - BUTTON_CELLS), compact)
     const lines = rows(await band($))
-    const need = paneColumns(lines) + PAD
+    // the gauge line carries the compact button
+    const need = paneColumns([...lines, [...lines[GAUGE_LINE]!, { text: ` ${COMPACT}` }]]) + 2 * PAD
     // an open of an open id resizes the dock; a width the person dragged to still wins
     if (e.props.placement === 'dock' && need !== asked) {
       asked = need
       void $.ui.open({ id: PANE, title: 'Headroom', columns: need }).catch(() => {})
     }
-    const { Box, Text } = $.ui.resolve(e)
-    return (
-      <Box flexDirection="column" paddingLeft={PAD}>
-        {lines.map((line, i) => (
-          <Text key={`${i}`} wrap="truncate-end">
-            {line.map((g, j) => (
-              <Text key={`${j}`} color={g.color} dimColor={g.dim}>
-                {g.text}
-              </Text>
-            ))}
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const line = (segs: Seg[], i: number) => (
+      <Text key={`${i}`} wrap="truncate-end">
+        {segs.map((g, j) => (
+          <Text key={`${j}`} color={g.color} dimColor={g.dim}>
+            {g.text}
           </Text>
         ))}
+      </Text>
+    )
+    return (
+      <Box flexDirection="column" paddingX={PAD}>
+        {lines.map((segs, i) =>
+          i === GAUGE_LINE ? (
+            <Box key={`${i}`} flexDirection="row" gap={1}>
+              {line(segs, i)}
+              {/* runs `/compact` through its hooks, so the topic picker asks first */}
+              <Button key="compact" plain dimColor label={COMPACT} onPress={compact} />
+            </Box>
+          ) : (
+            line(segs, i)
+          ),
+        )}
       </Box>
     )
   })
@@ -291,20 +334,8 @@ export const register: Register = on => {
     }
     if (pane?.isPlaced && pane.isShown) return next(e)
 
-    const room = (e.viewport?.columns ?? Infinity) - GUTTER
-    const segs = fit(await band($), room)
-    const { Box, Text } = $.ui.resolve(e)
-
-    return (
-      <Box>
-        <Text wrap="truncate-end">
-          {segs.map((g, i) => (
-            <Text key={`${i}`} color={g.color} dimColor={g.dim}>
-              {g.text}
-            </Text>
-          ))}
-        </Text>
-      </Box>
-    )
+    // runs `/compact` through its hooks, so the topic picker asks first
+    const compact = () => void $.command.run({ command: 'compact' }).catch(() => {})
+    return strip($.ui.resolve(e), stack(await band($), e.props.bodyColumns - BUTTON_CELLS), compact)
   })
 }

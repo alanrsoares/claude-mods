@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { compactInstructions, fit, health, modelName, paneColumns, parse, parseTopics, rebase, rows, sinceStart, tokens, width } from './lib'
+import { compactInstructions, fit, health, modelName, paneColumns, parse, parseTopics, rebase, rows, segments, sinceStart, stack, TIERS, tokens, width } from './lib'
 import type { Band } from './lib'
 
 const STATS = JSON.stringify({
@@ -75,6 +75,15 @@ test('the pane is as wide as its widest line, and drops the proxy for another on
   expect(paneColumns(lines)).toBe(Math.max(...lines.map(width)))
   expect(rows({ ...BAND, stats: 'other' })).toHaveLength(3)
   expect(rows({ ...BAND, stats: null }).at(-1)?.[0]?.text).toBe('  …')
+})
+
+test('stack wraps to two rows before it drops facts', async () => {
+  const full = width(segments(BAND, TIERS[0]))
+  expect(stack(BAND, full)).toHaveLength(1)
+  const two = stack(BAND, full - 1)
+  expect(two).toHaveLength(2)
+  expect(two.map(width).reduce((a, b) => a + b)).toBe(full - 3) // the ` │ ` between halves goes
+  expect(stack({ ...BAND, stats: 'other' }, 10)).toHaveLength(1)
 })
 
 test('health tells headroom from another proxy', async () => {
