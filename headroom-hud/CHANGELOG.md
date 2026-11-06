@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.4.0...headroom-hud-v0.5.0) (2026-11-06)
+
+
+### Features
+
+* **headroom-hud:** spin the ◈ while a turn runs ([b20a5bd](https://github.com/alanrsoares/claude-mods/commit/b20a5bd8366f14ff2ba980fc33e0b374531f3bee))
+
+
+### Bug Fixes
+
+* **headroom-hud:** compact button asks topics first ([4fe463c](https://github.com/alanrsoares/claude-mods/commit/4fe463cdfb2688c95c9cf5a2e4361597c9ca4bdc))
+
 ## [0.4.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.3.0...headroom-hud-v0.4.0) (2026-11-06)
 
 
