@@ -88,6 +88,28 @@ export const health = (text: string) => {
   }
 }
 
+/** PyPI's latest `headroom-ai` release, or undefined when the body is not a plain release version. */
+export const latestRelease = (text: string) => {
+  let json: unknown
+  try {
+    json = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+  const v = at(json, 'info', 'version')
+  return typeof v === 'string' && /^\d+(\.\d+)*$/.test(v) ? v : undefined
+}
+
+/** Dotted numeric versions: whether `a` is after `b`. */
+export const isNewer = (a: string, b: string) => {
+  const [x, y] = [a, b].map(v => v.split('.').map(n => Number.parseInt(n, 10) || 0))
+  for (let i = 0; i < Math.max(x!.length, y!.length); i++) {
+    const d = (x![i] ?? 0) - (y![i] ?? 0)
+    if (d) return d > 0
+  }
+  return false
+}
+
 export const ZERO: Totals = { requests: 0, tokensSaved: 0, usdSaved: 0 }
 
 /** The baseline to count from: the proxy's counters falling means it restarted, so count from zero. */

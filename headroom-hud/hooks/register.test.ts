@@ -17,6 +17,11 @@ const start = async ($: Parameters<TestBody>[0], on: Parameters<TestBody>[1], he
   const urls: string[] = []
   const keys: string[] = []
   const state: Record<string, unknown> = {}
+  const toasts: string[] = []
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
   on('state.set', ($, e, next) => {
     state[e.key] = e.value
     return next(e)
@@ -35,11 +40,11 @@ const start = async ($: Parameters<TestBody>[0], on: Parameters<TestBody>[1], he
   })
   on('http.fetch', (_, e) => {
     urls.push(e.url)
-    return res(e.url.endsWith('/health') ? health : STATS)
+    return res(e.url.endsWith('/health') ? health : e.url.includes('pypi') ? '{"info":{"version":"0.43.1"}}' : STATS)
   })
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   await new Promise<void>(r => setTimeout(r, 50))
-  return { urls, keys, state }
+  return { urls, keys, state, toasts }
 }
 
 test('a proxy that is not headroom stops the polling', async ($, on) => {
@@ -50,9 +55,15 @@ test('a proxy that is not headroom stops the polling', async ($, on) => {
 
 test('headroom is polled once, and the legacy shared baseline is dropped', async ($, on) => {
   const { urls, keys, state } = await start($, on, '{"service":"headroom-proxy","version":"0.42.0"}')
-  expect(urls).toEqual(['http://proxy/health', 'http://proxy/stats'])
+  expect(urls.slice(0, 2)).toEqual(['http://proxy/health', 'http://proxy/stats'])
   expect(keys).toEqual(['base'])
   expect((state.headroom as { requests: number }).requests).toBe(7)
+})
+
+test('a newer headroom on PyPI toasts', async ($, on) => {
+  const { urls, toasts } = await start($, on, '{"service":"headroom-proxy","version":"0.42.0"}')
+  expect(urls.at(-1)).toContain('pypi.org')
+  expect(toasts).toEqual(['◈ headroom 0.43.1 is out; the proxy runs 0.42.0'])
 })
 
 const turn = { answer: 'x', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as const

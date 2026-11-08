@@ -12,6 +12,8 @@ import {
   compactInstructions,
   digest,
   health,
+  isNewer,
+  latestRelease,
   modelName,
   heat,
   parse,
@@ -23,6 +25,7 @@ import {
 } from './lib'
 
 const DEFAULT_PROXY = 'http://127.0.0.1:8787'
+const RELEASES = 'https://pypi.org/pypi/headroom-ai/json'
 const POLL_MS = 15_000
 const BASE_TTL_MS = 7 * 24 * 3600_000 // a saved baseline outlives its session by this much
 
@@ -76,6 +79,16 @@ const pruneBases = async ($: EngineInterface, now: number) => {
     const at = key === 'base' ? 0 : key.startsWith('base:') ? Number(key.slice(5)) : now
     if (now - at > BASE_TTL_MS) await $.store.delete(key)
   }
+}
+
+/** Toasts once per release when PyPI has a newer headroom than the proxy runs. */
+const checkUpdate = async ($: EngineInterface) => {
+  if (version === undefined || (await read($, other))) return
+  const latest = latestRelease((await $.http.fetch(RELEASES)).text)
+  // the store is shared: one toast per release across sessions
+  if (!latest || !isNewer(latest, version) || (await $.store.get('notified')) === latest) return
+  await $.store.set('notified', latest)
+  $.ui.toast(`◈ headroom ${latest} is out; the proxy runs ${version}`)
 }
 
 const band = async ($: EngineInterface): Promise<Band> => {
@@ -262,7 +275,7 @@ export const register: Register = on => {
       }
     }
     const timer = $.clock.every(POLL_MS, () => void tick())
-    void tick()
+    void tick().then(() => checkUpdate($)).catch(() => {})
 
     return next(e)
   })

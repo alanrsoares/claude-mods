@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { compactInstructions, fit, health, modelName, paneColumns, parse, parseTopics, rebase, rows, segments, sinceStart, stack, TIERS, tokens, width } from './lib'
+import { compactInstructions, fit, health, isNewer, latestRelease, modelName, paneColumns, parse, parseTopics, rebase, rows, segments, sinceStart, stack, TIERS, tokens, width } from './lib'
 import type { Band } from './lib'
 
 const STATS = JSON.stringify({
@@ -100,4 +100,14 @@ test('a proxy that is not headroom leaves the band', async () => {
 test('a spinner frame takes the proxy glyph and the pending dots', async () => {
   expect(segments({ ...BAND, spin: '◆' }, TIERS[0]).some(g => g.text.startsWith('◆ '))).toBe(true)
   expect(rows({ ...BAND, stats: null, spin: '◆' }).at(-1)?.[0]?.text).toBe('  ◆')
+})
+
+test('an update is a newer plain release on PyPI', async () => {
+  expect(latestRelease('{"info":{"version":"0.43.1"}}')).toBe('0.43.1')
+  expect(latestRelease('{"info":{"version":"0.44.0rc1"}}')).toBeUndefined()
+  expect(latestRelease('<html>')).toBeUndefined()
+  expect(isNewer('0.43.1', '0.42.0')).toBe(true)
+  expect(isNewer('0.10.0', '0.9.9')).toBe(true)
+  expect(isNewer('0.42', '0.42.0')).toBe(false)
+  expect(isNewer('0.41.9', '0.42.0')).toBe(false)
 })
