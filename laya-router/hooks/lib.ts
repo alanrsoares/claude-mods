@@ -51,8 +51,9 @@ export const parse = (text: string): LayaRating | null => {
     const difficulty: unknown = a?.difficulty?.score
     const domain: unknown = a?.domain?.choice
     const noul: unknown = a?.is_sensitive?.noul
-    return typeof difficulty === 'number' && typeof domain === 'string'
-      ? { difficulty, domain, sensitive: typeof noul === 'number' && noul >= 0.5 }
+    // An unknown sensitivity is no rating: reading it as false would keep a sensitive prompt a tier low.
+    return typeof difficulty === 'number' && typeof domain === 'string' && typeof noul === 'number'
+      ? { difficulty, domain, sensitive: noul >= 0.5 }
       : null
   } catch {
     return null
@@ -63,7 +64,7 @@ const summary = (r: LayaRating): string =>
   `difficulty ${r.difficulty.toFixed(2)}, domain ${r.domain}${r.sensitive ? ', sensitive' : ''} → ${tierName(tier(r))}`
 
 export const line = (r: LayaRating): string =>
-  `laya: ${summary(r)} (advisory; an Agent call that names no model gets this tier)`
+  `laya: ${summary(r)} (advisory; a generic Agent call that names no model gets this tier)`
 
 export const status = (r: LayaRating, routed?: string): string =>
   `laya ${summary(r)}${routed ? ` · routed ${routed}` : ''}`
@@ -89,6 +90,12 @@ export const agentDefaults = (call: AgentChoice, t: Tier): Tier | null =>
  */
 export const route = (sessionModel: string, t: Tier, messageCount: number, maxMessages: number): string | null =>
   /opus/i.test(sessionModel) && t.model === 'sonnet' && messageCount <= maxMessages ? 'sonnet' : null
+
+/** Whether the host resolves a model alias sent from `turn.step`: before 2.1.309 every such request fails. */
+export const resolvesAliases = (version: string): boolean => {
+  const [a, b, c] = version.split(/[.-]/, 3).map(Number) as [number, number, number]
+  return a !== 2 ? a > 2 : b !== 1 ? b > 1 : c >= 309
+}
 
 const quantile = (sorted: readonly number[], q: number): number =>
   sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]!

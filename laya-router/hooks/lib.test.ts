@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { LayaLogEntry } from '../types'
-import { agentDefaults, DEFAULT_TIMEOUT_MS, line, parse, report, route, tier, tierName, timeoutMs } from './lib'
+import { agentDefaults, DEFAULT_TIMEOUT_MS, line, parse, report, resolvesAliases, route, tier, tierName, timeoutMs } from './lib'
 
 const ANSWER = JSON.stringify({
   answers: { difficulty: { score: 2.15 }, domain: { choice: 'code' }, is_sensitive: { noul: 0.2 } },
@@ -24,7 +24,7 @@ test('a sensitive prompt goes one tier up, capped at the top', async () => {
 test('parse reads the answers and rejects a changed shape', async () => {
   expect(parse(ANSWER)).toEqual(r(2.15))
   expect(parse(ANSWER.replace('0.2', '0.7'))).toEqual(r(2.15, true))
-  expect(parse(ANSWER.replace(',"is_sensitive":{"noul":0.2}', ''))).toEqual(r(2.15))
+  expect(parse(ANSWER.replace(',"is_sensitive":{"noul":0.2}', ''))).toBeNull()
   expect(parse(ANSWER.replace('score', 'value'))).toBeNull()
   expect(parse('not json')).toBeNull()
 })
@@ -32,6 +32,17 @@ test('parse reads the answers and rejects a changed shape', async () => {
 test('line names the tier', async () => {
   expect(line(r(2.15))).toContain('domain code → opus medium')
   expect(line(r(1.2, true))).toContain('domain code, sensitive → opus medium')
+  expect(line(r(1.2))).toContain('a generic Agent call')
+})
+
+test('resolvesAliases needs 2.1.309 or later', async () => {
+  expect(resolvesAliases('2.1.308')).toBe(false)
+  expect(resolvesAliases('2.1.309')).toBe(true)
+  expect(resolvesAliases('2.1.323-dev.20261101.t101500.sha1a2b3c4')).toBe(true)
+  expect(resolvesAliases('2.2.0')).toBe(true)
+  expect(resolvesAliases('3.0.0')).toBe(true)
+  expect(resolvesAliases('1.9.999')).toBe(false)
+  expect(resolvesAliases('garbage')).toBe(false)
 })
 
 test('timeoutMs falls back on a bad value', async () => {

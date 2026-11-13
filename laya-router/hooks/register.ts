@@ -10,6 +10,7 @@ import {
   parse,
   QUESTIONS,
   report,
+  resolvesAliases,
   route,
   status,
   tier,
@@ -53,7 +54,12 @@ export const register: Register = (on, options) => {
       ),
     ])
     const rating = res?.ok ? parse(res.text) : null
-    if (!rating) return next(e)
+    if (!rating) {
+      // An unrated prompt must not inherit the previous prompt's tier.
+      await update($, last, () => null)
+      if (e.turnId === undefined) await update($, pending, () => null)
+      return next(e)
+    }
     await update($, last, () => rating)
     // A prompt delivered into a running turn starts no turn of its own.
     if (e.turnId === undefined) await update($, pending, () => rating)
@@ -72,31 +78,36 @@ export const register: Register = (on, options) => {
   }).catch((_$, e, next) => next(e))
 
   // The route is chosen at the turn's first request and kept for its tool steps: one turn, one model.
+  // `model` is set only once the route is saved, so no later failure can split a turn across models.
   on('turn.step', async function* ($, e, next) {
     let model: string | null = null
     try {
       const t = e.agentId === undefined ? await read($, turn) : null
       if (t && t.turnId === e.turnId) {
-        if (t.route === undefined) {
+        if (t.route !== undefined) model = t.route
+        else {
           const suggested = tier(t.rating)
-          model = isRouting ? route(e.model, suggested, e.messageCount, maxMessages) : null
-          await update($, turn, now => (now?.turnId === t.turnId ? { ...now, route: model } : now))
-          if (model) $.ui.status(status(t.rating, model))
-          const entry: LayaLogEntry = {
-            ...t.rating,
-            at: Date.now(),
-            tier: tierName(suggested),
-            model: model ?? e.model,
-            routed: model !== null,
-          }
-          // shortcut: read-modify-write; two sessions logging at once can drop one entry.
-          const log = ((await $.store.get('log')) as LayaLogEntry[] | undefined) ?? []
-          await $.store.set('log', [...log, entry].slice(-LOG_MAX))
-        } else model = t.route
+          const canRoute =
+            isRouting && (await $.session.version().then(v => resolvesAliases(v.version), () => false))
+          const chosen = canRoute ? route(e.model, suggested, e.messageCount, maxMessages) : null
+          await update($, turn, now => (now?.turnId === t.turnId ? { ...now, route: chosen } : now))
+          model = chosen
+          try {
+            if (model) $.ui.status(status(t.rating, model))
+            const entry: LayaLogEntry = {
+              ...t.rating,
+              at: Date.now(),
+              tier: tierName(suggested),
+              model: model ?? e.model,
+              routed: model !== null,
+            }
+            // shortcut: read-modify-write; two sessions logging at once can drop one entry.
+            const log = ((await $.store.get('log')) as LayaLogEntry[] | undefined) ?? []
+            await $.store.set('log', [...log, entry].slice(-LOG_MAX))
+          } catch {}
+        }
       }
-    } catch {
-      model = null
-    }
+    } catch {}
     return yield* next(model ? { ...e, model } : e)
   })
 

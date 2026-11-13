@@ -23,6 +23,7 @@ const engine = (on: On, over: Record<string, Hook> = {}) => {
     'store.get': (_: unknown, e: { key: string }) => ({ value: store.get(e.key) }),
     'store.set': (_: unknown, e: { key: string; value: unknown }) => (store.set(e.key, e.value), { value: undefined }),
     'ui.status': () => ({ value: undefined }),
+    'session.version': () => ({ value: { version: '2.1.323' } }),
     'prompt.submit': (_: unknown, e: { text: string; context?: string[] }) => ({ text: e.text, context: e.context }),
     ...over,
   }
@@ -102,6 +103,40 @@ test('routing on: a continuation turn with no prompt is not routed or logged', {
   await runTurn($, { turnId: 't2', text: '', model: OPUS, steps: 1 })
   expect(sent).toEqual(['sonnet', OPUS])
   expect((store.get('log') as unknown[]).length).toBe(1)
+})
+
+test('routing on: a host older than 2.1.309 is not routed', { options: { route: true } }, async ($, on) => {
+  const { store, sent } = engine(on, { ...EASY, 'session.version': () => ({ value: { version: '2.1.300' } }) })
+  await $.prompt.submit({ text: PROMPT, ...SUBMIT })
+  await runTurn($, { text: PROMPT, model: OPUS, steps: 2 })
+  expect(sent).toEqual([OPUS, OPUS])
+  expect(store.get('log')).toEqual([expect.objectContaining({ routed: false })])
+})
+
+test('routing on: a failed log write keeps the turn on one model', { options: { route: true } }, async ($, on) => {
+  const { sent } = engine(on, {
+    ...EASY,
+    'store.set': () => {
+      throw new Error('disk full')
+    },
+  })
+  await $.prompt.submit({ text: PROMPT, ...SUBMIT })
+  await runTurn($, { text: PROMPT, model: OPUS, steps: 2 })
+  expect(sent).toEqual(['sonnet', 'sonnet'])
+})
+
+test('an unrated prompt clears the tier an Agent call would get', async ($, on) => {
+  let calls = 0
+  let seen: { model?: string } = {}
+  engine(on, {
+    'http.fetch': () =>
+      ++calls === 1 ? ok(answer(1.5, 0.9)) : { value: { status: 503, ok: false, headers: {}, text: '' } },
+    'tool.call': (_: unknown, e: typeof seen) => ((seen = e), { result: {} as never }),
+  })
+  await $.prompt.submit({ text: 'is this contract clause legal?', ...SUBMIT })
+  await $.prompt.submit({ text: 'now something else', ...SUBMIT })
+  await $.tool.call({ tool: 'Agent', description: 'd', prompt: 'p' })
+  expect(seen.model).toBeUndefined()
 })
 
 test('an Agent call that names no model gets the tier', async ($, on) => {
