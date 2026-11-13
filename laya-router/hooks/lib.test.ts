@@ -1,7 +1,24 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { LayaLogEntry } from '../types'
-import { agentDefaults, DEFAULT_TIMEOUT_MS, line, parse, report, resolvesAliases, route, tier, tierName, timeoutMs } from './lib'
+import {
+  agentApplied,
+  agentDefaults,
+  bar,
+  DEFAULT_TIMEOUT_MS,
+  holdout,
+  lowerEffort,
+  parse,
+  pearson,
+  perMessageEffort,
+  report,
+  resolvesAliases,
+  route,
+  status,
+  tier,
+  tierName,
+  timeoutMs,
+} from './lib'
 
 const ANSWER = JSON.stringify({
   answers: { difficulty: { score: 2.15 }, domain: { choice: 'code' }, is_sensitive: { noul: 0.2 } },
@@ -10,14 +27,14 @@ const r = (difficulty: number, sensitive = false) => ({ difficulty, domain: 'cod
 const SONNET = { model: 'sonnet', effort: 'high' } as const
 
 test('tier follows the cutoffs', async () => {
-  expect(tierName(tier(r(1.99)))).toBe('sonnet high')
-  expect(tierName(tier(r(2.0)))).toBe('opus medium')
-  expect(tierName(tier(r(2.2)))).toBe('opus high')
+  expect(tierName(tier(r(1.49)))).toBe('sonnet high')
+  expect(tierName(tier(r(1.5)))).toBe('opus medium')
+  expect(tierName(tier(r(1.9)))).toBe('opus high')
 })
 
 test('a sensitive prompt goes one tier up, capped at the top', async () => {
-  expect(tierName(tier(r(1.5, true)))).toBe('opus medium')
-  expect(tierName(tier(r(2.0, true)))).toBe('opus high')
+  expect(tierName(tier(r(1.2, true)))).toBe('opus medium')
+  expect(tierName(tier(r(1.5, true)))).toBe('opus high')
   expect(tierName(tier(r(2.5, true)))).toBe('opus high')
 })
 
@@ -29,10 +46,24 @@ test('parse reads the answers and rejects a changed shape', async () => {
   expect(parse('not json')).toBeNull()
 })
 
-test('line names the tier', async () => {
-  expect(line(r(2.15))).toContain('domain code → opus medium')
-  expect(line(r(1.2, true))).toContain('domain code, sensitive → opus medium')
-  expect(line(r(1.2))).toContain('a generic Agent call')
+test('lowerEffort only lowers, and only easy turns', async () => {
+  expect(lowerEffort(r(0.8), 'high')).toBe('low')
+  expect(lowerEffort({ ...r(1.4), domain: 'chitchat' }, 'high')).toBe('low')
+  expect(lowerEffort(r(1.4), 'high')).toBe('medium')
+  expect(lowerEffort(r(1.4), 'xhigh')).toBe('medium')
+  expect(lowerEffort({ ...r(1.9), domain: 'chitchat' }, 'high')).toBeNull()
+  expect(lowerEffort(r(1.6), 'high')).toBeNull()
+  expect(lowerEffort(r(1.4), 'medium')).toBeNull()
+  expect(lowerEffort(r(0.8), 'low')).toBeNull()
+  expect(lowerEffort(r(0.8), undefined)).toBeNull()
+  expect(lowerEffort(r(0.8), 3)).toBeNull()
+})
+
+test('perMessageEffort reads the capability list', async () => {
+  expect(perMessageEffort('per_turn_effort')).toBe(true)
+  expect(perMessageEffort('foo,per_turn_effort')).toBe(true)
+  expect(perMessageEffort('per_turn_effort_x')).toBe(false)
+  expect(perMessageEffort(undefined)).toBe(false)
 })
 
 test('resolvesAliases needs 2.1.309 or later', async () => {
@@ -78,7 +109,71 @@ test('report counts tiers and spreads difficulty', async () => {
   }))
   const out = report(log)
   expect(out).toContain('3 rated turns since 2026-11-13')
-  expect(out).toContain('tier: opus medium 1 · sonnet high 1 · opus high 1')
+  expect(out).toContain('tier: opus medium 2 · opus high 1')
   expect(out).toContain('max 2.30')
-  expect(out).toContain('sensitive 1 · routed 0')
+  expect(out).toContain('sensitive 1 · routed 0 · effort lowered 0')
+})
+
+test('holdout takes a share in 0..1, else 0', async () => {
+  expect(holdout(0.5)).toBe(0.5)
+  expect(holdout(1)).toBe(1)
+  expect(holdout(undefined)).toBe(0)
+  expect(holdout(1.5)).toBe(0)
+  expect(holdout('0.5')).toBe(0)
+})
+
+test('pearson needs 3 points and spread', async () => {
+  expect(pearson([1, 2, 3], [2, 4, 6])?.toFixed(6)).toBe("1.000000")
+  expect(pearson([1, 2, 3], [6, 4, 2])?.toFixed(6)).toBe("-1.000000")
+  expect(pearson([1, 2], [1, 2])).toBeNull()
+  expect(pearson([1, 1, 1], [1, 2, 3])).toBeNull()
+})
+
+test('report compares applied and holdout turns, leaving aborts out of the fit', async () => {
+  const at = Date.UTC(2026, 10, 13)
+  const e = (difficulty: number, outputTokens: number, applied: boolean, aborted = false): LayaLogEntry => ({
+    ...r(difficulty),
+    at,
+    tier: tierName(tier(r(difficulty))),
+    model: 'opus',
+    routed: false,
+    applied,
+    latencyMs: 300,
+    steps: 2,
+    outputTokens,
+    durationMs: 4000,
+    aborted,
+    agentFills: 1,
+  })
+  const out = report([e(1, 100, true), e(2, 200, false), e(3, 300, true), e(1.5, 5, true, true)], 4)
+  expect(out).toContain('fit 3: difficulty ~ out tokens r 1.00 · ~ steps r —')
+  expect(out).toContain('applied 3: out tokens 200 · steps 2 · 4 s · aborted 1 · agent fills 3')
+  expect(out).toContain('holdout 1: out tokens 200')
+  expect(out).toContain('laya latency: p50 300 ms · p90 300 ms · misses 4')
+  expect(report([{ ...r(1), at, tier: 'sonnet high', model: 'opus', routed: false }])).not.toContain('fit')
+  expect(report([{ ...r(1), at, tier: 'sonnet high', model: 'opus', routed: false }], 3)).toContain('misses 3')
+})
+
+test('status draws the bar, the tier badge and the marks', async () => {
+  expect(bar(0)).toBe('▱▱▱▱▱▱')
+  expect(bar(1.44)).toBe('▰▰▰▱▱▱')
+  expect(bar(9)).toBe('▰▰▰▰▰▰')
+  expect(status(r(1.44))).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high')
+  expect(status(r(2.3))).toBe('laya ▰▰▰▰▰▱ 2.30 · code · ● opus high')
+  expect(status(r(1.2, true), { routed: 'sonnet', effort: 'medium', holdout: true })).toBe(
+    'laya ▰▰▱▱▱▱ 1.20 · code · ◑ opus medium · ⚠ sensitive · ↘ sonnet · ↓ medium · ◌ holdout',
+  )
+  expect(status({ ...r(1.44), latencyMs: 299 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high')
+  expect(status({ ...r(1.44), latencyMs: 1131 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 1.1s')
+  expect(status({ ...r(1.44), latencyMs: 300 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 300ms')
+  expect(status({ ...r(1.44), latencyMs: 999 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 999ms')
+  expect(status({ ...r(1.44), latencyMs: 1000 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 1.0s')
+})
+
+test('agentApplied follows the running turn, not a prompt sent into it', async () => {
+  const held = { rating: { applied: false } }
+  expect(agentApplied(held, { applied: true })).toBe(false)
+  expect(agentApplied({ rating: { applied: true } }, { applied: false })).toBe(true)
+  expect(agentApplied(null, { applied: true })).toBe(true)
+  expect(agentApplied(null, { applied: false })).toBe(false)
 })

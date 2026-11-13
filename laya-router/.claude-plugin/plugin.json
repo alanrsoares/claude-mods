@@ -21,6 +21,18 @@
       "title": "Route only up to this many messages",
       "description": "Past this length the conversation stays on the session's model, because a switch would rewrite a large cache.",
       "default": 40
+    },
+    "lowerEffort": {
+      "type": "boolean",
+      "title": "Lower effort on easy turns",
+      "description": "Send an easy main-loop turn at medium effort, and trivial chat at low. Down only. Acts only when CLAUDE_CODE_MODEL_CAPABILITIES has per_turn_effort, so no prompt cache is rewritten.",
+      "default": false
+    },
+    "holdout": {
+      "type": "number",
+      "title": "Holdout share",
+      "description": "The share of rated prompts (0 to 1) that run as if laya were off: no Agent fill, route or lower effort. /laya compares them with the rest. Set 0.5 to test if laya helps.",
+      "default": 0
     }
   }
 }
