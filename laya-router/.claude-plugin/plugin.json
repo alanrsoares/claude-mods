@@ -1,11 +1,26 @@
 {
   "name": "laya-router",
   "version": "0.2.0",
-  "description": "Rates each prompt with a local laya-serve and adds one advisory line naming a model tier.",
+  "description": "Rates each prompt with a local laya-serve, names a model tier, fills it in on Agent calls and can route the main loop.",
   "author": {
     "name": "Alan R. Soares"
   },
   "license": "MIT",
   "repository": "https://github.com/alanrsoares/claude-mods",
-  "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/laya-router"
+  "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/laya-router",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "route": {
+      "type": "boolean",
+      "title": "Route the main loop",
+      "description": "Send an easy turn of an Opus session to Sonnet. Each switch writes the other model's prompt cache, so it can cost more than it saves.",
+      "default": false
+    },
+    "routeMaxMessages": {
+      "type": "number",
+      "title": "Route only up to this many messages",
+      "description": "Past this length the conversation stays on the session's model, because a switch would rewrite a large cache.",
+      "default": 40
+    }
+  }
 }
