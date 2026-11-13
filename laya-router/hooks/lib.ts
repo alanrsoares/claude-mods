@@ -109,6 +109,10 @@ const GENERIC_AGENTS: ReadonlySet<string | undefined> = new Set([undefined, 'gen
 
 type AgentChoice = { subagent_type?: string; model?: string }
 
+/** Whether an Agent call is in the applied group: a running turn's decision owns it, whatever prompt arrived into it since. */
+export const agentApplied = (running: { rating: { applied: boolean } } | null, latest: { applied: boolean }): boolean =>
+  running ? running.rating.applied : latest.applied
+
 /** The tier to fill in on an Agent call, or null to leave it as written. */
 export const agentDefaults = (call: AgentChoice, t: Tier): Tier | null =>
   call.model !== undefined || !GENERIC_AGENTS.has(call.subagent_type) ? null : t
@@ -190,7 +194,7 @@ const arm = (name: string, all: readonly Done[]): string => {
 // Aborted turns are left out of the fit: an interrupt cuts their cost short, whatever the rating.
 const outcomes = (log: readonly LayaLogEntry[], misses: number): string[] => {
   const done = log.filter((e): e is Done => e.steps !== undefined)
-  if (done.length === 0) return []
+  if (done.length === 0) return misses ? [`misses ${misses}`] : []
   const fit = done.filter(e => !e.aborted)
   const d = fit.map(e => e.difficulty)
   const ms = done.map(e => e.latencyMs).sort((a, b) => a - b)

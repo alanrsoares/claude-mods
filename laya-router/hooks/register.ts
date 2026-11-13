@@ -3,6 +3,7 @@ import type { Register } from 'claude-code'
 
 import type { LayaLogEntry, LayaPrompt } from '../types'
 import {
+  agentApplied,
   agentDefaults,
   DEFAULT_URL,
   holdout,
@@ -155,7 +156,7 @@ export const register: Register = (on, options) => {
   on('tool.call', { tool: 'Agent' }, async ($, e, next) => {
     if (e.tool !== 'Agent') return next(e)
     const rating = await read($, last)
-    const fill = rating?.applied ? agentDefaults(e, tier(rating)) : null
+    const fill = rating && agentApplied(await read($, turn), rating) ? agentDefaults(e, tier(rating)) : null
     if (fill)
       try {
         await update($, turn, now => (now ? { ...now, agentFills: now.agentFills + 1 } : now))

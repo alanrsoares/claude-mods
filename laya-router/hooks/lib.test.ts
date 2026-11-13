@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { LayaLogEntry } from '../types'
 import {
+  agentApplied,
   agentDefaults,
   bar,
   DEFAULT_TIMEOUT_MS,
@@ -150,6 +151,7 @@ test('report compares applied and holdout turns, leaving aborts out of the fit',
   expect(out).toContain('holdout 1: out tokens 200')
   expect(out).toContain('laya latency: p50 300 ms · p90 300 ms · misses 4')
   expect(report([{ ...r(1), at, tier: 'sonnet high', model: 'opus', routed: false }])).not.toContain('fit')
+  expect(report([{ ...r(1), at, tier: 'sonnet high', model: 'opus', routed: false }], 3)).toContain('misses 3')
 })
 
 test('status draws the bar, the tier badge and the marks', async () => {
@@ -166,4 +168,12 @@ test('status draws the bar, the tier badge and the marks', async () => {
   expect(status({ ...r(1.44), latencyMs: 300 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 300ms')
   expect(status({ ...r(1.44), latencyMs: 999 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 999ms')
   expect(status({ ...r(1.44), latencyMs: 1000 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 1.0s')
+})
+
+test('agentApplied follows the running turn, not a prompt sent into it', async () => {
+  const held = { rating: { applied: false } }
+  expect(agentApplied(held, { applied: true })).toBe(false)
+  expect(agentApplied({ rating: { applied: true } }, { applied: false })).toBe(true)
+  expect(agentApplied(null, { applied: true })).toBe(true)
+  expect(agentApplied(null, { applied: false })).toBe(false)
 })
