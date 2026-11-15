@@ -115,7 +115,14 @@ export const register: Register = (on, options) => {
           )
           model = chosen
           effort = lowered
-          if (model || effort) $.ui.status(status(t.rating, { routed: model, effort }))
+          $.ui.status(
+            status(t.rating, {
+              run: { model: chosen ?? e.model, ...((lowered ?? e.effort) && { effort: lowered ?? e.effort }) },
+              routed: !!chosen,
+              lowered: !!lowered,
+              holdout: !applied,
+            }),
+          )
         }
         try {
           await update($, turn, now => (now?.turnId === t.turnId ? { ...now, steps: now.steps + 1 } : now))

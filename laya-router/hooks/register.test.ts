@@ -226,6 +226,23 @@ test('lowerEffort: an easy turn runs every step at medium and is logged so', { o
   expect(store.get('log')).toEqual([expect.objectContaining({ effort: 'medium' })])
 })
 
+test('the status line shows the model and effort the turn runs at', { options: { lowerEffort: true, holdout: 0 } }, async ($, on) => {
+  const { statuses } = engine(on, { ...EASY, ...CAPS })
+  await $.prompt.submit({ text: PROMPT, ...SUBMIT })
+  await runTurn($, { text: PROMPT, model: OPUS, steps: 2 })
+  expect(statuses).toEqual([
+    'laya ▰▰▱▱▱▱ 1.20 · code · agents ◔ sonnet high',
+    'laya ▰▰▱▱▱▱ 1.20 · code · opus-5-5 ↓ medium · agents ◔ sonnet high',
+  ])
+})
+
+test('the status line keeps the session pair and the holdout mark on a held-out turn', { options: { holdout: 1 } }, async ($, on) => {
+  const { statuses } = engine(on, EASY)
+  await $.prompt.submit({ text: PROMPT, ...SUBMIT })
+  await runTurn($, { text: PROMPT, model: OPUS, steps: 1 })
+  expect(statuses.at(-1)).toBe('laya ▰▰▱▱▱▱ 1.20 · code · opus-5-5 high · agents ◔ sonnet high · ◌ holdout')
+})
+
 test('lowerEffort: without per-message effort the level stays', { options: { lowerEffort: true } }, async ($, on) => {
   const { store, efforts } = engine(on, EASY)
   await $.prompt.submit({ text: PROMPT, ...SUBMIT })

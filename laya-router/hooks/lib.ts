@@ -2,7 +2,8 @@ import type { LayaLogEntry, LayaOutcome, LayaRating } from '../types'
 
 export const DEFAULT_URL = 'http://127.0.0.1:8765'
 export const DEFAULT_TIMEOUT_MS = 2500
-export const LOG_MAX = 500
+// ~350 bytes an entry; room for the ~840 turns a 30% effect needs at holdout 0.5.
+export const LOG_MAX = 3000
 
 export const QUESTIONS = {
   difficulty: {
@@ -76,22 +77,29 @@ export const bar = (difficulty: number): string => {
 // Below this a rating costs the prompt too little to be worth a place on the line; `/laya` has the spread.
 export const SLOW_MS = 300
 
-export type StatusMarks = { routed?: string | null; effort?: string | null; holdout?: boolean }
+export type StatusMarks = { run?: { model: string; effort?: string | number }; routed?: boolean; lowered?: boolean; holdout?: boolean }
 
-/** The status line: `laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high`, then ⚠ sensitive, ↘ routed, ↓ effort, ◌ holdout, ⏱ slow rating. */
+const ms = (n: number): string => (n < 1000 ? `${n}ms` : `${(n / 1000).toFixed(1)}s`)
+
+/**
+ * The status line: `laya ▰▰▰▱▱▱ 1.44 · code · opus-5-5 ↓ low · agents ◔ sonnet high`, then ⚠ sensitive, ◌ holdout, ⏱ slow rating.
+ * `run` is the model and effort the main turn runs at, unknown until its first request; the tier is what an Agent fill gets.
+ */
 export const status = (
   r: LayaRating & { latencyMs?: number },
-  { routed, effort, holdout }: StatusMarks = {},
+  { run, routed, lowered, holdout }: StatusMarks = {},
 ): string =>
   [
     `laya ${bar(r.difficulty)} ${r.difficulty.toFixed(2)}`,
     r.domain,
-    `${TIER_BADGES[tierIndex(r)]} ${tierName(tier(r))}`,
+    run &&
+      [routed && '↘', run.model.replace(/^claude-/, ''), run.effort && `${lowered ? '↓ ' : ''}${run.effort}`]
+        .filter(Boolean)
+        .join(' '),
+    `agents ${TIER_BADGES[tierIndex(r)]} ${tierName(tier(r))}`,
     r.sensitive && '⚠ sensitive',
-    routed && `↘ ${routed}`,
-    effort && `↓ ${effort}`,
     holdout && '◌ holdout',
-    r.latencyMs !== undefined && r.latencyMs >= SLOW_MS && `⏱ ${r.latencyMs < 1000 ? `${r.latencyMs}ms` : `${(r.latencyMs / 1000).toFixed(1)}s`}`,
+    r.latencyMs !== undefined && r.latencyMs >= SLOW_MS && `⏱ ${ms(r.latencyMs)}`,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -125,6 +133,9 @@ export const agentDefaults = (call: AgentChoice, t: Tier): Tier | null =>
 export const route = (sessionModel: string, t: Tier, messageCount: number, maxMessages: number): string | null =>
   /opus/i.test(sessionModel) && t.model === 'sonnet' && messageCount <= maxMessages ? 'sonnet' : null
 
+/** Below this difficulty a turn is easy: its effort may be lowered, and `/laya` compares such turns across arms. */
+export const EASY_BELOW = 1.5
+
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
 type Effort = (typeof EFFORTS)[number]
 
@@ -133,8 +144,9 @@ type Effort = (typeof EFFORTS)[number]
  * trivial or easy chat goes to `low`, an easy request to `medium`, anything harder keeps its level.
  */
 export const lowerEffort = ({ difficulty, domain }: LayaRating, current: unknown): 'low' | 'medium' | null => {
+  const easy = difficulty < EASY_BELOW
   const target: 'low' | 'medium' | null =
-    difficulty < 1.0 || (difficulty < 1.5 && domain === 'chitchat') ? 'low' : difficulty < 1.5 ? 'medium' : null
+    difficulty < 1.0 || (easy && domain === 'chitchat') ? 'low' : easy ? 'medium' : null
   const at = EFFORTS.indexOf(current as Effort)
   return target && at > EFFORTS.indexOf(target) ? target : null
 }
@@ -185,6 +197,23 @@ type Done = LayaLogEntry & LayaOutcome
 
 const r2 = (r: number | null): string => (r === null ? '—' : r.toFixed(2))
 
+const median = (xs: readonly number[]): number | '—' => {
+  if (xs.length === 0) return '—'
+  const s = [...xs].sort((a, b) => a - b)
+  const m = s.length >> 1
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2
+}
+
+/** Sample standard deviation, or null with fewer than 3 points. */
+const sd = (xs: readonly number[]): number | null => {
+  if (xs.length < 3) return null
+  const m = mean(xs)
+  return Math.sqrt(xs.reduce((a, x) => a + (x - m) ** 2, 0) / (xs.length - 1))
+}
+
+// 15.7 = 2 × (1.96 + 0.84)²: a two-sided test at 5% with 80% power, on log output tokens.
+const perArm = (logSd: number, cut: number): number => Math.ceil((15.7 * logSd ** 2) / Math.log(1 - cut) ** 2)
+
 const arm = (name: string, all: readonly Done[]): string => {
   const ok = all.filter(e => !e.aborted)
   const avg = (f: (e: Done) => number) => (ok.length ? Math.round(mean(ok.map(f))) : 0)
@@ -197,12 +226,20 @@ const outcomes = (log: readonly LayaLogEntry[], misses: number): string[] => {
   if (done.length === 0) return misses ? [`misses ${misses}`] : []
   const fit = done.filter(e => !e.aborted)
   const d = fit.map(e => e.difficulty)
-  const ms = done.map(e => e.latencyMs).sort((a, b) => a - b)
+  const latency = done.map(e => e.latencyMs).sort((a, b) => a - b)
+  const easy = (applied: boolean) => fit.filter(e => e.applied === applied && e.difficulty < EASY_BELOW)
+  const [easyA, easyH] = [easy(true), easy(false)]
+  // The sample is of easy turns, so their spread sizes it.
+  const logSd = sd([...easyA, ...easyH].filter(e => e.outputTokens > 0).map(e => Math.log(e.outputTokens)))
   return [
     `fit ${fit.length}: difficulty ~ out tokens r ${r2(pearson(d, fit.map(e => e.outputTokens)))} · ~ steps r ${r2(pearson(d, fit.map(e => e.steps)))}`,
     arm('applied', done.filter(e => e.applied)),
     arm('holdout', done.filter(e => !e.applied)),
-    `laya latency: p50 ${quantile(ms, 0.5)} ms · p90 ${quantile(ms, 0.9)} ms · misses ${misses}`,
+    `easy (d < ${EASY_BELOW}): applied ${easyA.length}, lowered ${easyA.filter(e => e.effort).length}: out tokens med ${median(easyA.map(e => e.outputTokens))} · holdout ${easyH.length}: out tokens med ${median(easyH.map(e => e.outputTokens))}`,
+    ...(logSd === null
+      ? []
+      : [`spread: easy log out tokens sd ${logSd.toFixed(2)} · easy turns per arm to see a 50% cut ~${perArm(logSd, 0.5)} · 30% ~${perArm(logSd, 0.3)}`]),
+    `laya latency: p50 ${quantile(latency, 0.5)} ms · p90 ${quantile(latency, 0.9)} ms · misses ${misses}`,
   ]
 }
 
