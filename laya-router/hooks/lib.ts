@@ -197,8 +197,12 @@ type Done = LayaLogEntry & LayaOutcome
 
 const r2 = (r: number | null): string => (r === null ? '—' : r.toFixed(2))
 
-const median = (xs: readonly number[]): number | '—' =>
-  xs.length ? quantile([...xs].sort((a, b) => a - b), 0.5) : '—'
+const median = (xs: readonly number[]): number | '—' => {
+  if (xs.length === 0) return '—'
+  const s = [...xs].sort((a, b) => a - b)
+  const m = s.length >> 1
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2
+}
 
 /** Sample standard deviation, or null with fewer than 3 points. */
 const sd = (xs: readonly number[]): number | null => {
@@ -225,7 +229,8 @@ const outcomes = (log: readonly LayaLogEntry[], misses: number): string[] => {
   const latency = done.map(e => e.latencyMs).sort((a, b) => a - b)
   const easy = (applied: boolean) => fit.filter(e => e.applied === applied && e.difficulty < EASY_BELOW)
   const [easyA, easyH] = [easy(true), easy(false)]
-  const logSd = sd(fit.filter(e => e.outputTokens > 0).map(e => Math.log(e.outputTokens)))
+  // The sample is of easy turns, so their spread sizes it.
+  const logSd = sd([...easyA, ...easyH].filter(e => e.outputTokens > 0).map(e => Math.log(e.outputTokens)))
   return [
     `fit ${fit.length}: difficulty ~ out tokens r ${r2(pearson(d, fit.map(e => e.outputTokens)))} · ~ steps r ${r2(pearson(d, fit.map(e => e.steps)))}`,
     arm('applied', done.filter(e => e.applied)),
@@ -233,7 +238,7 @@ const outcomes = (log: readonly LayaLogEntry[], misses: number): string[] => {
     `easy (d < ${EASY_BELOW}): applied ${easyA.length}, lowered ${easyA.filter(e => e.effort).length}: out tokens med ${median(easyA.map(e => e.outputTokens))} · holdout ${easyH.length}: out tokens med ${median(easyH.map(e => e.outputTokens))}`,
     ...(logSd === null
       ? []
-      : [`spread: log out tokens sd ${logSd.toFixed(2)} · easy turns per arm to see a 50% cut ~${perArm(logSd, 0.5)} · 30% ~${perArm(logSd, 0.3)}`]),
+      : [`spread: easy log out tokens sd ${logSd.toFixed(2)} · easy turns per arm to see a 50% cut ~${perArm(logSd, 0.5)} · 30% ~${perArm(logSd, 0.3)}`]),
     `laya latency: p50 ${quantile(latency, 0.5)} ms · p90 ${quantile(latency, 0.9)} ms · misses ${misses}`,
   ]
 }
