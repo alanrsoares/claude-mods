@@ -150,6 +150,8 @@ test('report compares applied and holdout turns, leaving aborts out of the fit',
   expect(out).toContain('applied 3: out tokens 200 · steps 2 · 4 s · aborted 1 · agent fills 3')
   expect(out).toContain('holdout 1: out tokens 200')
   expect(out).toContain('laya latency: p50 300 ms · p90 300 ms · misses 4')
+  expect(out).toContain('easy (d < 1.5): applied 1, lowered 0: out tokens med 100 · holdout 0: out tokens med —')
+  expect(out).toContain('spread: log out tokens sd 0.56 · easy turns per arm to see a 50% cut ~11 · 30% ~39')
   expect(report([{ ...r(1), at, tier: 'sonnet high', model: 'opus', routed: false }])).not.toContain('fit')
   expect(report([{ ...r(1), at, tier: 'sonnet high', model: 'opus', routed: false }], 3)).toContain('misses 3')
 })
@@ -158,16 +160,20 @@ test('status draws the bar, the tier badge and the marks', async () => {
   expect(bar(0)).toBe('▱▱▱▱▱▱')
   expect(bar(1.44)).toBe('▰▰▰▱▱▱')
   expect(bar(9)).toBe('▰▰▰▰▰▰')
-  expect(status(r(1.44))).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high')
-  expect(status(r(2.3))).toBe('laya ▰▰▰▰▰▱ 2.30 · code · ● opus high')
-  expect(status(r(1.2, true), { routed: 'sonnet', effort: 'medium', holdout: true })).toBe(
-    'laya ▰▰▱▱▱▱ 1.20 · code · ◑ opus medium · ⚠ sensitive · ↘ sonnet · ↓ medium · ◌ holdout',
+  expect(status(r(1.44))).toBe('laya ▰▰▰▱▱▱ 1.44 · code · agents ◔ sonnet high')
+  expect(status(r(2.3))).toBe('laya ▰▰▰▰▰▱ 2.30 · code · agents ● opus high')
+  expect(status(r(1.2, true), { run: { model: 'sonnet', effort: 'medium' }, routed: true, lowered: true, holdout: true })).toBe(
+    'laya ▰▰▱▱▱▱ 1.20 · code · ↘ sonnet ↓ medium · agents ◑ opus medium · ⚠ sensitive · ◌ holdout',
   )
-  expect(status({ ...r(1.44), latencyMs: 299 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high')
-  expect(status({ ...r(1.44), latencyMs: 1131 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 1.1s')
-  expect(status({ ...r(1.44), latencyMs: 300 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 300ms')
-  expect(status({ ...r(1.44), latencyMs: 999 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 999ms')
-  expect(status({ ...r(1.44), latencyMs: 1000 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · ◔ sonnet high · ⏱ 1.0s')
+  expect(status(r(1.44), { run: { model: 'claude-opus-5-5', effort: 'high' } })).toBe(
+    'laya ▰▰▰▱▱▱ 1.44 · code · opus-5-5 high · agents ◔ sonnet high',
+  )
+  expect(status(r(1.44), { run: { model: 'claude-opus-5-5' } })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · opus-5-5 · agents ◔ sonnet high')
+  expect(status({ ...r(1.44), latencyMs: 299 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · agents ◔ sonnet high')
+  expect(status({ ...r(1.44), latencyMs: 1131 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · agents ◔ sonnet high · ⏱ 1.1s')
+  expect(status({ ...r(1.44), latencyMs: 300 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · agents ◔ sonnet high · ⏱ 300ms')
+  expect(status({ ...r(1.44), latencyMs: 999 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · agents ◔ sonnet high · ⏱ 999ms')
+  expect(status({ ...r(1.44), latencyMs: 1000 })).toBe('laya ▰▰▰▱▱▱ 1.44 · code · agents ◔ sonnet high · ⏱ 1.0s')
 })
 
 test('agentApplied follows the running turn, not a prompt sent into it', async () => {
