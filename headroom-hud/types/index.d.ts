@@ -10,6 +10,9 @@ export type Headroom = Totals & {
   base: Totals | null
 }
 
+/** What each main turn cost: the session total at the last turn's end, and the last turns' own part. */
+export type Spend = { prev: number; turns: number[] }
+
 declare module 'claude-code' {
   interface McpToolInputs {
     'mcp__headroom-hud__compact': { keep: string }
@@ -18,6 +21,8 @@ declare module 'claude-code' {
   interface PluginState {
     'headroom-hud': {
       headroom: Headroom | null
+      /** The main loop's cost, turn on turn. */
+      spend: Spend
       /** The 75% context toast fired and has not re-armed. */
       warned: boolean
       /** Context crossed 75% and the model has yet to hear it. */

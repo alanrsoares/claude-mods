@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { compactInstructions, fit, health, isNewer, latestRelease, modelName, paneColumns, parse, parseTopics, rebase, rows, segments, sinceStart, stack, TIERS, tokens, width } from './lib'
+import { compactInstructions, duration, fit, health, isNewer, latestRelease, modelName, NO_SPEND, paneColumns, parse, parseTopics, rebase, record, rows, segments, sinceStart, spark, stack, TIERS, tokens, width } from './lib'
 import type { Band } from './lib'
 
 const STATS = JSON.stringify({
@@ -75,6 +75,22 @@ test('the pane is as wide as its widest line, and drops the proxy for another on
   expect(paneColumns(lines)).toBe(Math.max(...lines.map(width)))
   expect(rows({ ...BAND, stats: 'other' })).toHaveLength(2)
   expect(rows({ ...BAND, stats: null }).at(-1)?.[0]?.text).toBe('  …')
+})
+
+test('each turn is a step of the session total, and /clear starts over', async () => {
+  const s = [1, 1.5, 1.5, 3].reduce(record, { prev: 1, turns: [] } as typeof NO_SPEND)
+  expect(s.turns).toEqual([0.5, 1.5]) // a turn that cost nothing is no turn
+  expect(record(s, 0.2)).toEqual({ prev: 0.2, turns: [] })
+  expect(spark([0.5, 1.5, 0.1])).toBe('▃█▁')
+  expect(duration(125 * 60_000)).toBe('2h05')
+  expect(duration(45_000)).toBe('45s')
+})
+
+test('the pane shows the session time and the cost of recent turns', async () => {
+  const lines = rows({ ...BAND, elapsed: 25 * 60_000, turns: [0.1, 0.3, 0.2] }).map(l => l[0]?.text)
+  expect(lines).toContain('  ⏱ 25m')
+  expect(lines).toContain('  ▃█▆ $0.20/turn')
+  expect(rows({ ...BAND, turns: [0.1] }).some(l => l[0]?.text.includes('/turn'))).toBe(false)
 })
 
 test('stack wraps to two rows before it drops facts', async () => {

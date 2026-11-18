@@ -1,6 +1,6 @@
 import type { SessionMessage } from 'claude-code'
 
-import type { Headroom, Totals } from '../types'
+import type { Headroom, Spend, Totals } from '../types'
 
 export const tokens = (n: number) => {
   const k = Math.round(n / 1e3)
@@ -8,6 +8,28 @@ export const tokens = (n: number) => {
 }
 
 export const usd = (n: number) => `$${n.toFixed(n >= 100 ? 0 : 2)}`
+
+/** `45s`, `25m`, `2h05`. */
+export const duration = (ms: number) => {
+  const s = Math.floor(ms / 1e3)
+  const m = Math.floor(s / 60)
+  return s < 60 ? `${s}s` : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`
+}
+
+export const NO_SPEND: Spend = { prev: 0, turns: [] }
+const TURNS = 16
+
+/** The session total at a turn's end as one more turn; a total below the last one means `/clear`, so start over. */
+export const record = (s: Spend, total: number): Spend => {
+  if (total < s.prev) return { prev: total, turns: [] }
+  return { prev: total, turns: total > s.prev ? [...s.turns, total - s.prev].slice(-TURNS) : s.turns }
+}
+
+/** One block a value, each as tall as its share of the largest. */
+export const spark = (xs: readonly number[]) => {
+  const max = Math.max(...xs)
+  return xs.map(x => '▁▂▃▄▅▆▇█'[max > 0 ? Math.min(7, Math.floor((x / max) * 8)) : 0]).join('')
+}
 
 export const bar = (pct: number, cells: number) => {
   const filled = Math.min(cells, Math.round((pct / 100) * cells))
@@ -127,6 +149,10 @@ export type Band = {
   version: string | undefined
   context: { percent?: number; tokens?: number; window: number }
   cost: number | undefined
+  /** Milliseconds since the session began, wall clock. */
+  elapsed?: number
+  /** What the last main turns cost each, oldest first. */
+  turns?: readonly number[]
   /** 'other': ANTHROPIC_BASE_URL is not a headroom proxy, so the band leaves the proxy out. */
   stats: Headroom | null | 'other'
   /** A spinner frame while the main turn runs. */
@@ -220,10 +246,14 @@ export const stack = (band: Band, room: number): Seg[][] => {
 }
 
 /** The band as lines for the side pane, one fact per line; the pane's header draws the context percent and bar. */
-export const rows = ({ model, level, version, context, cost, stats, spin }: Band): Seg[][] => {
+export const rows = ({ model, level, version, context, cost, elapsed, turns = [], stats, spin }: Band): Seg[][] => {
   const tail = [`${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)].filter(Boolean).join(' · ')
+  // the cost of each recent turn: a climb is context growing or a cold cache, a drop is a compaction
+  const trend = turns.length < 2 ? [] : [[{ text: `  ${spark(turns)} ${usd(turns.at(-1)!)}/turn`, dim: true as const }]]
   const lines: Seg[][] = [
     [{ text: `◧ ${tail}`, dim: true }],
+    ...(elapsed === undefined ? [] : [[{ text: `  ⏱ ${duration(elapsed)}`, dim: true as const }]]),
+    ...trend,
     [{ text: `󰧑 ${level === undefined ? model : `${model} ${level}`}`, dim: true }],
   ]
   if (stats === 'other') return lines
