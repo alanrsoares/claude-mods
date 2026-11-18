@@ -79,7 +79,7 @@ test('the pane is as wide as its widest line, and drops the proxy for another on
 
 test('each turn is a step of the session total, and /clear starts over', async () => {
   const s = [1, 1.5, 1.5, 3].reduce(record, { prev: 1, turns: [] } as typeof NO_SPEND)
-  expect(s.turns).toEqual([0.5, 1.5]) // a turn that cost nothing is no turn
+  expect(s.turns).toEqual([0, 0.5, 0, 1.5]) // a turn that cost nothing shows as zero, not as the turn before
   expect(record(s, 0.2)).toEqual({ prev: 0.2, turns: [] })
   expect(spark([0.5, 1.5, 0.1])).toBe('▃█▁')
   expect(duration(125 * 60_000)).toBe('2h05')

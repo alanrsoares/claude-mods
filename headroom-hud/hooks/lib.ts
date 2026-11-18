@@ -22,7 +22,7 @@ const TURNS = 16
 /** The session total at a turn's end as one more turn; a total below the last one means `/clear`, so start over. */
 export const record = (s: Spend, total: number): Spend => {
   if (total < s.prev) return { prev: total, turns: [] }
-  return { prev: total, turns: total > s.prev ? [...s.turns, total - s.prev].slice(-TURNS) : s.turns }
+  return { prev: total, turns: [...s.turns, total - s.prev].slice(-TURNS) }
 }
 
 /** One block a value, each as tall as its share of the largest. */
