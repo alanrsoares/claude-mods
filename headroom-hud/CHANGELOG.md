@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.5.0...headroom-hud-v0.6.0) (2026-11-22)
+
+
+### Features
+
+* **headroom-hud:** show session age and cost per turn ([#12](https://github.com/alanrsoares/claude-mods/issues/12)) ([8eb8d28](https://github.com/alanrsoares/claude-mods/commit/8eb8d28daca99d04bacac0977a3de2a645406968))
+
 ## [0.5.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.4.0...headroom-hud-v0.5.0) (2026-11-08)
 
 

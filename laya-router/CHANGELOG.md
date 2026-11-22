@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/alanrsoares/claude-mods/compare/laya-router-v0.3.0...laya-router-v0.4.0) (2026-11-22)
+
+
+### Features
+
+* **laya-router:** show the pair a turn runs at ([#10](https://github.com/alanrsoares/claude-mods/issues/10)) ([f499727](https://github.com/alanrsoares/claude-mods/commit/f499727cc61f173fee748c10c87afa4207ec28af))
+
 ## [0.3.0](https://github.com/alanrsoares/claude-mods/compare/laya-router-v0.2.0...laya-router-v0.3.0) (2026-11-13)
 
 
