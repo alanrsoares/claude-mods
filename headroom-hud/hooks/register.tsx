@@ -15,6 +15,8 @@ import {
   isNewer,
   latestRelease,
   modelName,
+  NO_SPEND,
+  record,
   heat,
   parse,
   parseTopics,
@@ -30,6 +32,7 @@ const POLL_MS = 15_000
 const BASE_TTL_MS = 7 * 24 * 3600_000 // a saved baseline outlives its session by this much
 
 const headroom = atom({ plugin: 'headroom-hud', key: 'headroom' } as const, null)
+const spend = atom({ plugin: 'headroom-hud', key: 'spend' } as const, NO_SPEND)
 const warned = atom({ plugin: 'headroom-hud', key: 'warned' } as const, false)
 const other = atom({ plugin: 'headroom-hud', key: 'other' } as const, false)
 const nudge = atom({ plugin: 'headroom-hud', key: 'nudge' } as const, false)
@@ -92,9 +95,11 @@ const checkUpdate = async ($: EngineInterface) => {
 }
 
 const band = async ($: EngineInterface): Promise<Band> => {
-  const { context, cost } = await $.session.usage()
+  const { context, cost, startedAt } = await $.session.usage()
   const isOther = await read($, other)
   return {
+    elapsed: (await $.clock.now()) - startedAt,
+    turns: (await read($, spend)).turns,
     model: modelName(await $.session.model()),
     level: effort ?? ((await $.store.get('effort')) as string | number | null) ?? undefined,
     version,
@@ -200,7 +205,9 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const proxy = (await $.env.get('ANTHROPIC_BASE_URL')) ?? DEFAULT_PROXY
-    const { startedAt } = await $.session.usage()
+    const { startedAt, cost } = await $.session.usage()
+    // count turns from here: the session's earlier cost is no turn's
+    if (cost) await update($, spend, s => (s.turns.length ? s : { prev: cost.usd, turns: [] }))
     const baseKey = `base:${startedAt}` // per session: concurrent sessions share the store
     await pruneBases($, await $.clock.now())
     await $.command.register({ name: 'hud', description: 'Show or hide the headroom side pane.' }).catch(() => {})
@@ -306,6 +313,8 @@ export const register: Register = on => {
       spinner?.cancel()
       spinner = undefined
       frame = undefined
+      const { cost } = await $.session.usage()
+      if (cost) await update($, spend, s => record(s, cost.usd))
     }
     await warnContext($)
     $.ui.invalidate('ui.render')
