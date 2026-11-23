@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { compactInstructions, duration, exhale, fit, gauge, health, isNewer, latestRelease, modelName, NO_SPEND, paneColumns, parse, parseTopics, rebase, record, rows, segments, sinceStart, spark, stack, TIERS, tokens, width } from './lib'
+import { compactInstructions, duration, exhale, fit, gauge, health, isNewer, latestRelease, modelName, NO_SPEND, paneColumns, parse, parseTopics, rebase, record, rows, segments, SWEEP_MS, sinceStart, spark, stack, TIERS, tokens, width } from './lib'
 import type { Band, Seg } from './lib'
 
 const STATS = JSON.stringify({
@@ -119,15 +119,26 @@ test('a spinner frame takes the proxy glyph and the pending dots', async () => {
 })
 
 test('the gauge comet sweeps out and back with a fading tail, one width', async () => {
-  const at = (frame: number) => gauge(40, 5, { color: 'green' }, frame)
+  const at = (ms: number) => gauge(40, 5, { color: 'green' }, ms)
   const text = (segs: Seg[]) => segs.map(g => g.text).join('')
   expect(text(gauge(40, 5, { color: 'green' }))).toBe('▰▰▱▱▱')
-  // out: head at cell 3, tail fading left over cells 2 and 1
-  expect(at(3)).toEqual([{ text: '▰', color: 'green' }, { text: '▰', color: 'claude', dim: true }, { text: '▰▰', color: 'claude' }, { text: '▱', color: 'green' }])
-  // back: head at cell 3, tail to its right
-  expect(at(5).slice(-1)).toEqual([{ text: '▰▰', color: 'claude' }])
-  expect(at(8)).toEqual(at(0))
-  for (let f = 0; f < 16; f++) expect(width(at(f))).toBe(5)
+  // out, 3/4 of the way: head at cell 3, tail fading left over cells 2 and 1
+  expect(at(SWEEP_MS * 0.75)).toEqual([{ text: '▰', color: 'green' }, { text: '▰', color: 'claude', dim: true }, { text: '▰▰', color: 'claude' }, { text: '▱', color: 'green' }])
+  // back, 1/4 of the way: head at cell 3, tail to its right
+  expect(at(SWEEP_MS * 1.25).slice(-1)).toEqual([{ text: '▰▰', color: 'claude' }])
+  expect(at(2 * SWEEP_MS)).toEqual(at(0))
+  for (let ms = 0; ms < 4 * SWEEP_MS; ms += 50) expect(width(at(ms))).toBe(5)
+})
+
+test('a sweep takes as long on a wide gauge as on a narrow one', async () => {
+  // the cell index of the first comet cell
+  const headAt = (cells: number) => {
+    const segs = gauge(0, cells, {}, SWEEP_MS)
+    return width(segs.slice(0, segs.findIndex(g => g.color === 'claude')))
+  }
+  // one sweep in, the head is on the last cell at any width
+  expect(headAt(30)).toBe(29)
+  expect(headAt(10)).toBe(9)
 })
 
 test('the breath is dim at rest, bright at its peak', async () => {

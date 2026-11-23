@@ -45,9 +45,11 @@ const PANE = 'hud'
 const TITLE = ' ◈ '
 // Claude Code's own spinner glyphs, out and back
 const SPIN = [...'·✢✳✶✻✶✳✢']
-const FRAME_MS = 120
-/** The spinner frame; undefined while no main turn runs. */
-let frame: number | undefined
+const GLYPH_MS = 120
+// redraws while a turn runs; the comet and glyph read the clock, so this sets only smoothness
+const FRAME_MS = 50
+/** When the main turn started; undefined while none runs. */
+let turnAt: number | undefined
 let spinner: Timer | undefined
 let breath: Timer | undefined
 const COMPACT = '[compact]'
@@ -114,8 +116,8 @@ const band = async ($: EngineInterface): Promise<Band> => {
     context,
     cost: cost?.usd,
     stats: isOther ? 'other' : await read($, headroom),
-    spin: frame === undefined ? undefined : SPIN[frame % SPIN.length],
-    frame,
+    spin: turnAt === undefined ? undefined : SPIN[Math.floor((now - turnAt) / GLYPH_MS) % SPIN.length],
+    turnMs: turnAt === undefined ? undefined : now - turnAt,
   }
 }
 
@@ -307,11 +309,10 @@ export const register: Register = on => {
     return yield* next(e)
   })
 
-  on('turn.start', ($, e, next) => {
+  on('turn.start', async ($, e, next) => {
     if (e.agentId === undefined && spinner === undefined) {
-      frame = 0
+      turnAt = await $.clock.now()
       spinner = $.clock.every(FRAME_MS, () => {
-        frame = (frame ?? 0) + 1
         $.ui.invalidate('ui.render')
       })
     }
@@ -322,7 +323,7 @@ export const register: Register = on => {
     if (e.agentId === undefined) {
       spinner?.cancel()
       spinner = undefined
-      frame = undefined
+      turnAt = undefined
       const { cost } = await $.session.usage()
       if (cost) await update($, spend, s => record(s, cost.usd))
     }
@@ -390,7 +391,7 @@ export const register: Register = on => {
         </Box>
         {/* the context gauge, one cell short of the pane's right padding */}
         <Text key="gauge">
-          {gauge(pct ?? 0, Math.max(0, e.props.bodyColumns - 2 * PAD - 1), pct === undefined ? { dim: true } : { color }, b.frame).map(
+          {gauge(pct ?? 0, Math.max(0, e.props.bodyColumns - 2 * PAD - 1), pct === undefined ? { dim: true } : { color }, b.turnMs).map(
             (g, j) => (
               <Text key={`${j}`} color={g.color} dimColor={g.dim}>
                 {g.text}
