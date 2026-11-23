@@ -388,7 +388,8 @@ export const register: Register = on => {
       // `bodyRows` is every row the body shows: one more overflows, and the version scrolls out of view
       <Box flexDirection="column" paddingX={PAD} minHeight={isDock ? e.props.scroll.bodyRows : undefined}>
         {/* the engine draws no tab title for a lone pane */}
-        <Box key="title" flexDirection="row" gap={1}>
+        {/* one row at any width, as `hasRoom` counts it: a narrow dock clips the row instead of wrapping it */}
+        <Box key="title" flexDirection="row" gap={1} height={1} overflow="hidden">
           <Text backgroundColor="cyan" color="black" weight="bold">
             {TITLE.replace('◈', b.spin ?? '◈')}
           </Text>
