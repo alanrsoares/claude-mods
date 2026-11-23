@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.6.0...headroom-hud-v0.7.0) (2026-11-23)
+
+
+### Features
+
+* **headroom-hud:** animate the gauge, slim the badge ([#13](https://github.com/alanrsoares/claude-mods/issues/13)) ([a8ec3d5](https://github.com/alanrsoares/claude-mods/commit/a8ec3d55f70693730a20171b9a60e30d73a485e5))
+* **headroom-hud:** show the mod version in the pane ([#15](https://github.com/alanrsoares/claude-mods/issues/15)) ([5feedf6](https://github.com/alanrsoares/claude-mods/commit/5feedf6eb0d18031e725b069c37dc725eaf3b664))
+
 ## [0.6.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.5.0...headroom-hud-v0.6.0) (2026-11-22)
 
 
