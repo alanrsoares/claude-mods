@@ -36,6 +36,32 @@ export const bar = (pct: number, cells: number) => {
   return '▰'.repeat(filled) + '▱'.repeat(cells - filled)
 }
 
+/** One sweep's length, in ms, at any width: a wide pane and a narrow strip move in step. */
+export const SWEEP_MS = 1600
+
+/** The bar as segments; with `ms` into a turn, a comet sweeps it out and back. */
+export const gauge = (pct: number, cells: number, style: Omit<Seg, 'text'>, ms?: number): Seg[] => {
+  const base = [...bar(pct, cells)]
+  if (ms === undefined || cells < 2) return [{ text: base.join(''), ...style }]
+  const p = (ms % (2 * SWEEP_MS)) / SWEEP_MS // 0..2: out, then back
+  const isOut = p < 1
+  const head = Math.round((isOut ? p : 2 - p) * (cells - 1))
+  const back = isOut ? -1 : 1 // toward the cells it just left
+  // theme keys, not raw colors: they stay legible on light and dark themes
+  const TAIL: readonly Omit<Seg, 'text'>[] = [{ color: 'claude' }, { color: 'claude' }, { color: 'claude', dim: true }]
+  const cell = (c: string, i: number): Seg => {
+    const d = (i - head) * back
+    return d >= 0 && d < TAIL.length ? { text: '▰', ...TAIL[d] } : { text: c, ...style }
+  }
+  // adjacent cells of one style merge into one segment
+  return base.map(cell).reduce<Seg[]>((out, g) => {
+    const last = out.at(-1)
+    if (last && last.color === g.color && last.dim === g.dim) last.text += g.text
+    else out.push({ ...g })
+    return out
+  }, [])
+}
+
 /** `claude-opus-5-5[1m]` → `opus 5.5`; ids of any other shape lose only the prefix, suffix and date. */
 export const modelName = (id: string) => {
   const bare = id.replace(/^claude-/, '').replace(/\[.*\]$/, '').replace(/-\d{8}$/, '')
@@ -44,6 +70,10 @@ export const modelName = (id: string) => {
 }
 
 export const heat = (pct: number) => (pct >= 85 ? 'red' : pct >= 60 ? 'yellow' : 'green')
+
+const BREATH_MS = 2400
+/** True on the dim half of a slow breath: `(1 - cos)/2` below one half. */
+export const exhale = (ms: number) => (1 - Math.cos((2 * Math.PI * ms) / BREATH_MS)) / 2 < 0.5
 
 export const DOWN: Headroom = {
   isUp: false,
@@ -157,6 +187,10 @@ export type Band = {
   stats: Headroom | null | 'other'
   /** A spinner frame while the main turn runs. */
   spin?: string
+  /** Milliseconds into the main turn while it runs; they drive the gauge's comet. */
+  turnMs?: number
+  /** Context is high or a compaction waits: true on the dim half of the breath. */
+  faint?: boolean
 }
 
 export type Seg = { text: string; color?: string; dim?: true }
@@ -195,19 +229,19 @@ const proxySegs = (stats: Headroom | null, t: Tier, spin?: string): Seg[] => {
 }
 
 /** The band's two halves: the model and context, then the proxy (empty for another proxy). */
-const halves = ({ model, level, version, context, cost, stats, spin }: Band, t: Tier): [Seg[], Seg[]] => {
+const halves = ({ model, level, version, context, cost, stats, spin, turnMs }: Band, t: Tier): [Seg[], Seg[]] => {
   const pct = context.percent
   const tail = [t.tokens && `${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)]
     .filter(Boolean)
     .join(' · ')
-  const gauge = t.cells ? (p: number) => `${bar(p, t.cells)}  ` : () => ''
+  const style: Omit<Seg, 'text'> = pct === undefined ? { dim: true } : { color: heat(pct) }
+  const bars = t.cells ? [...gauge(pct ?? 0, t.cells, style, turnMs), { text: '  ', ...style }] : []
 
   return [
     [
       { text: `󰧑 ${level === undefined ? model : `${model} ${level}`} │ ◧ `, dim: true },
-      pct === undefined
-        ? { text: `${gauge(0)}–`, dim: true }
-        : { text: `${gauge(pct)}${pct}%`, color: heat(pct) },
+      ...bars,
+      { text: pct === undefined ? '–' : `${pct}%`, ...style },
       { text: tail && ` ${tail}`, dim: true },
     ],
     stats === 'other'
