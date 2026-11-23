@@ -59,6 +59,8 @@ const PAD = 1 // cells between the dock's borders and the text, each side
 // Also kept in the store, so the band shows it again after a reload, before the first request.
 let effort: string | number | undefined
 let version: string | undefined
+/** This mod's own version, from its plugin.json; the pane's corner shows it. */
+let modVersion: string | undefined
 // The main loop sent a request since the last poll; while idle, /stats is not fetched.
 let isStale = true
 // The dock width last asked for; the pane asks again when its widest line changes.
@@ -222,6 +224,11 @@ export const register: Register = on => {
     if (cost) await update($, spend, s => (s.turns.length ? s : { prev: cost.usd, turns: [] }))
     const baseKey = `base:${startedAt}` // per session: concurrent sessions share the store
     await pruneBases($, await $.clock.now())
+    // plugin.json's version is a string field, as /health's is; a failed read leaves the corner empty
+    modVersion = await $.fs
+      .read(`${$.plugin.root}/.claude-plugin/plugin.json`)
+      .then(text => health(text).version)
+      .catch(() => undefined)
     await $.command.register({ name: 'hud', description: 'Show or hide the headroom side pane.' }).catch(() => {})
     // the band works without the tool: a failed register leaves only the toast
     await $.tool
@@ -373,8 +380,11 @@ export const register: Register = on => {
     }
     const { Box, Button, Text } = $.ui.resolve(e)
     const color = pct === undefined ? undefined : heat(pct)
+    const isDock = e.props.placement !== 'widget'
     return (
-      <Box flexDirection="column" paddingX={PAD}>
+      // docked, the column fills the pane, so the version sits in its bottom-right corner
+      // `bodyRows` is every row the body shows: one more overflows, and the version scrolls out of view
+      <Box flexDirection="column" paddingX={PAD} minHeight={isDock ? e.props.scroll.bodyRows : undefined}>
         {/* the engine draws no tab title for a lone pane */}
         <Box key="title" flexDirection="row" gap={1}>
           <Text backgroundColor="cyan" color="black" weight="bold">
@@ -408,6 +418,11 @@ export const register: Register = on => {
             ))}
           </Text>
         ))}
+        {isDock && modVersion !== undefined && (
+          <Box key="version" flexGrow={1} justifyContent="flex-end" alignItems="flex-end">
+            <Text dimColor>v{modVersion}</Text>
+          </Box>
+        )}
       </Box>
     )
   })
