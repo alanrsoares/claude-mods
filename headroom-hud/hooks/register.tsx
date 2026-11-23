@@ -41,7 +41,7 @@ const dismissed = atom({ plugin: 'headroom-hud', key: 'dismissed' } as const, fa
 
 const TOOL_ID = 'mcp__headroom-hud__compact'
 const PANE = 'hud'
-const TITLE = ' ◈ HEADROOM '
+const TITLE = ' ◈ '
 // Claude Code's own spinner glyphs, out and back
 const SPIN = [...'·✢✳✶✻✶✳✢']
 const FRAME_MS = 120
