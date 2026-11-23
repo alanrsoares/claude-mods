@@ -381,6 +381,8 @@ export const register: Register = on => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const color = pct === undefined ? undefined : heat(pct)
     const isDock = e.props.placement !== 'widget'
+    // the title, the gauge and the lines take a row each; the version takes a free row, or none
+    const hasRoom = 2 + lines.length < e.props.scroll.bodyRows
     return (
       // docked, the column fills the pane, so the version sits in its bottom-right corner
       // `bodyRows` is every row the body shows: one more overflows, and the version scrolls out of view
@@ -418,7 +420,7 @@ export const register: Register = on => {
             ))}
           </Text>
         ))}
-        {isDock && modVersion !== undefined && (
+        {isDock && hasRoom && modVersion !== undefined && (
           <Box key="version" flexGrow={1} justifyContent="flex-end" alignItems="flex-end">
             <Text dimColor>v{modVersion}</Text>
           </Box>
