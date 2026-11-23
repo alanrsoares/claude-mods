@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { compactInstructions, duration, fit, health, isNewer, latestRelease, modelName, NO_SPEND, paneColumns, parse, parseTopics, rebase, record, rows, segments, sinceStart, spark, stack, TIERS, tokens, width } from './lib'
-import type { Band } from './lib'
+import { compactInstructions, duration, exhale, fit, gauge, health, isNewer, latestRelease, modelName, NO_SPEND, paneColumns, parse, parseTopics, rebase, record, rows, segments, sinceStart, spark, stack, TIERS, tokens, width } from './lib'
+import type { Band, Seg } from './lib'
 
 const STATS = JSON.stringify({
   summary: {
@@ -116,6 +116,24 @@ test('a proxy that is not headroom leaves the band', async () => {
 test('a spinner frame takes the proxy glyph and the pending dots', async () => {
   expect(segments({ ...BAND, spin: '◆' }, TIERS[0]).some(g => g.text.startsWith('◆ '))).toBe(true)
   expect(rows({ ...BAND, stats: null, spin: '◆' }).at(-1)?.[0]?.text).toBe('  ◆')
+})
+
+test('the gauge comet sweeps out and back with a fading tail, one width', async () => {
+  const at = (frame: number) => gauge(40, 5, { color: 'green' }, frame)
+  const text = (segs: Seg[]) => segs.map(g => g.text).join('')
+  expect(text(gauge(40, 5, { color: 'green' }))).toBe('▰▰▱▱▱')
+  // out: head at cell 3, tail fading left over cells 2 and 1
+  expect(at(3)).toEqual([{ text: '▰', color: 'green' }, { text: '▰', color: 'claude', dim: true }, { text: '▰▰', color: 'claude' }, { text: '▱', color: 'green' }])
+  // back: head at cell 3, tail to its right
+  expect(at(5).slice(-1)).toEqual([{ text: '▰▰', color: 'claude' }])
+  expect(at(8)).toEqual(at(0))
+  for (let f = 0; f < 16; f++) expect(width(at(f))).toBe(5)
+})
+
+test('the breath is dim at rest, bright at its peak', async () => {
+  expect(exhale(0)).toBe(true)
+  expect(exhale(1200)).toBe(false)
+  expect(exhale(2400)).toBe(true)
 })
 
 test('an update is a newer plain release on PyPI', async () => {
