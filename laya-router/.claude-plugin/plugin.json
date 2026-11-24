@@ -25,7 +25,7 @@
     "lowerEffort": {
       "type": "boolean",
       "title": "Lower effort on easy turns",
-      "description": "Send an easy main-loop turn at medium effort, and trivial chat at low. Down only. Acts only when CLAUDE_CODE_MODEL_CAPABILITIES has per_turn_effort, so no prompt cache is rewritten.",
+      "description": "Send an easy main-loop turn at medium effort, and trivial turns or easy chat at low. Down only. Acts only when CLAUDE_CODE_MODEL_CAPABILITIES has per_turn_effort, so no prompt cache is rewritten.",
       "default": false
     },
     "holdout": {
