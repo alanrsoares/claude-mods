@@ -58,8 +58,8 @@ Load a mod from its folder with `CLAUDE_CODE_PLUGIN_DIRS` (colon-separated) in `
 `claude plugin validate <mod>` and `/reload-plugins`.
 
 `tsconfig.json` extends `.claude-plugin/types/tsconfig.json`, which Claude Code generates (git-ignored).
-The `*.test.ts` files import `claude-code/testing` from those generated types and run with `bun test`
-once generated.
+The `*.test.ts` files import `claude-code/testing`, which Claude Code provides at test time. Run them
+with `claude plugin test <mod>`.
 
 `bun run check` typechecks and validates every mod. Run it before each commit automatically with
 `git config core.hooksPath .githooks`. Adding a new mod requires updating:

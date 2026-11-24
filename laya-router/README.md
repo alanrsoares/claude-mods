@@ -16,7 +16,7 @@ Rates each prompt with a local [laya](https://huggingface.co/convaiinnovations/l
 | Route the main loop | `route` | `false` | Sends an easy turn of an Opus session to Sonnet (requires Claude Code `>= 2.1.309`). Each switch rewrites the other model's prompt cache. |
 | Route only up to this many messages | `routeMaxMessages` | `40` | Stops routing past this message count to avoid rewriting a large cache. |
 | Lower effort on easy turns | `lowerEffort` | `false` | Lowers main-loop effort (down only) to `medium` on easy turns (`difficulty < 1.5`) and `low` on trivial turns (`difficulty < 1.0`) or easy chitchat. Acts only when `CLAUDE_CODE_MODEL_CAPABILITIES` contains `per_turn_effort`, so no prompt cache is rewritten. |
-| Holdout share | `holdout` | `0` | Share of rated prompts (`0`–`1`) run as if laya were off (no Agent fill, route, or lower effort). Set `0.5` to A/B test. |
+| Holdout share | `holdout` | `0` | Share of rated prompts (`0`–`1`) run as if laya were off (no Agent fill, route, or lower effort). Set `0.5` to A/B test. Exception: a prompt submitted mid-turn does not change the running turn's holdout decision, though a later `Agent` fill in an applied turn uses the latest prompt's rating. |
 
 ## Environment
 
