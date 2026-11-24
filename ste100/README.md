@@ -5,7 +5,7 @@ Asks the model (and spawned subagents) to write in ASD-STE100 Simplified Technic
 ## What it does
 
 - Injects STE100 writing rules into the session prompt and prepends a short STE100 instruction to spawned subagents.
-- Lints each completed main answer (ignoring code blocks, inline code, URLs, and paths) for sentences over 25 words (`long`), passive voice (`passive`), and paragraphs over 6 sentences (`dense`), showing `STE ✓` or `STE ⚠ ...` in the status line.
+- Lints each completed main answer (ignoring fenced code blocks, and replacing inline code, URLs, and paths with a single placeholder word so each still counts as 1 word) for sentences over 25 words (`long`), passive voice (`passive`), and paragraphs over 6 sentences (`dense`), showing `STE ✓` or `STE ⚠ ...` in the status line.
 
 ## Commands
 

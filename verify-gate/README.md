@@ -6,7 +6,7 @@ Asks before shipping while edited code has not passed a check command since its 
 
 - Tracks `Edit`, `Write`, and `NotebookEdit` calls matching the watched-paths regex.
 - Clears the unverified flag when a `Bash` command matching the check-commands regex exits `0`.
-- Prompts for permission (`decision: 'ask'`) before a `Bash` command matching the ship-commands regex while unverified, unless the same command runs `<check> && <ship>` first.
+- Prompts for permission (`decision: 'ask'`) before a `Bash` command matching the ship-commands regex while unverified, unless the command text matches `<check> && <ship>` (a text heuristic rather than shell parsing, so a command that only prints a check string before `&&` also passes).
 - Appends a one-time warning to the end of a turn that edited watched files without a passing check.
 
 ## Config (`/config`)
