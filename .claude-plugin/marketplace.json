@@ -43,7 +43,7 @@
     {
       "name": "laya-router",
       "source": "./laya-router",
-      "description": "Rates each prompt with a local laya-serve and adds one advisory line naming a model tier.",
+      "description": "Rates each prompt with a local laya-serve, names a model tier, fills it in on Agent calls and can route the main loop.",
       "version": "0.4.0",
       "author": {
         "name": "Alan R. Soares"
