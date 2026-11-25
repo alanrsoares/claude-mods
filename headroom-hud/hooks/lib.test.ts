@@ -17,10 +17,25 @@ test('tokens rolls 999.5k over to M', async () => {
   expect(tokens(42)).toBe('42')
 })
 
-test('modelName keeps the minor version', async () => {
+test('modelName keeps the minor version and strips provider/ARN wrappers', async () => {
   expect(modelName('claude-opus-5-5[1m]')).toBe('opus 5.5')
   expect(modelName('claude-sonnet-4-20250514')).toBe('sonnet 4')
   expect(modelName('sonnet')).toBe('sonnet')
+  expect(modelName('anthropic.claude-sonnet-4-20250514-v1:0')).toBe('sonnet 4')
+  expect(modelName('us.anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe('sonnet 4.5')
+  expect(modelName('global.anthropic.claude-opus-4-6-v1[1m]')).toBe('opus 4.6')
+  expect(modelName('arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-5-20250929-v1:0')).toBe('sonnet 4.5')
+  expect(modelName('arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-4-6-v1[1m]')).toBe('opus 4.6')
+  expect(modelName('arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/0a1b2c3d4e5f')).toBe('0a1b2c3d4e5f')
+  expect(modelName('arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0')).toBe('sonnet 3.5')
+  expect(modelName('claude-sonnet-4-5@20250929')).toBe('sonnet 4.5')
+  expect(modelName('claude-3-5-sonnet-v2@20241022')).toBe('sonnet 3.5')
+  expect(modelName('anthropic/claude-sonnet-4.5')).toBe('sonnet 4.5')
+  expect(modelName('anthropic/claude-3.7-sonnet:thinking')).toBe('sonnet 3.7')
+  expect(modelName('openrouter/anthropic/claude-opus-4.6:beta')).toBe('opus 4.6')
+  expect(modelName('bedrock/invoke/us.anthropic.claude-sonnet-4-6')).toBe('sonnet 4.6')
+  expect(modelName('vertex_ai/claude-sonnet-4-6')).toBe('sonnet 4.6')
+  expect(modelName('google/gemini-2.5-pro:free')).toBe('gemini-2.5-pro')
 })
 
 test('parse reads stats and rejects a changed shape', async () => {

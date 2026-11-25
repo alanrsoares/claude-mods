@@ -62,11 +62,18 @@ export const gauge = (pct: number, cells: number, style: Omit<Seg, 'text'>, ms?:
   }, [])
 }
 
-/** `claude-opus-5-5[1m]` → `opus 5.5`; ids of any other shape lose only the prefix, suffix and date. */
+/** `claude-opus-5-5[1m]` or a Bedrock/OpenRouter/LiteLLM id → `opus 5.5`; other ids lose only prefixes, suffixes and dates. */
 export const modelName = (id: string) => {
-  const bare = id.replace(/^claude-/, '').replace(/\[.*\]$/, '').replace(/-\d{8}$/, '')
-  const [, family, major, minor] = /^(\D+?)-(\d+)(?:-(\d+))?$/.exec(bare) ?? []
-  return family ? `${family} ${major}${minor ? `.${minor}` : ''}` : bare
+  const bare = id
+    .replace(/\[.*\]$/, '')
+    .replace(/^.*\//, '')
+    .replace(/^(?:[\w-]+\.)*anthropic\./, '')
+    .replace(/^claude-/, '')
+    .replace(/(?:[-@]\d{8}|-v\d+(?::\w+)*|:[a-z]+)+$/, '')
+  const [, family, major, minor] = /^(\D+?)-(\d+)(?:[-.](\d+))?$/.exec(bare) ?? []
+  if (family) return `${family} ${major}${minor ? `.${minor}` : ''}`
+  const [, maj, min, legacy] = /^(\d+)(?:[-.](\d+))?-(opus|sonnet|haiku)$/.exec(bare) ?? []
+  return legacy ? `${legacy} ${maj}${min ? `.${min}` : ''}` : bare
 }
 
 export const heat = (pct: number) => (pct >= 85 ? 'red' : pct >= 60 ? 'yellow' : 'green')
