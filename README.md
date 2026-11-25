@@ -8,7 +8,6 @@ Claude Code mods (plugins with hooks), published as one marketplace.
 | <img src="bash-tidy/.claude-plugin/icon.png" alt="" width="28" /> | [`bash-tidy`](bash-tidy/README.md) | Strips redundant `cd`; asks before lone `cat`/`grep`/`sed -i`. |
 | <img src="headroom-hud/.claude-plugin/icon.png" alt="" width="28" /> | [`headroom-hud`](headroom-hud/README.md) | Context gauge, cost, headroom proxy savings, `/hud`, and guided `/compact`. |
 | <img src="laya-router/.claude-plugin/icon.png" alt="" width="28" /> | [`laya-router`](laya-router/README.md) | Rates prompts via `laya-serve` to fill `Agent` tiers, lower effort, or route Opus turns. |
-| <img src="ste100/.claude-plugin/icon.png" alt="" width="28" /> | [`ste100`](ste100/README.md) | Requests ASD-STE100 English, lints answers in the status line, toggles with `/ste`. |
 | <img src="verify-gate/.claude-plugin/icon.png" alt="" width="28" /> | [`verify-gate`](verify-gate/README.md) | Asks before shipping unverified edits and warns at turn end. |
 
 ## Install
