@@ -1,11 +1,9 @@
 # agent-gate
 
-Sends every `Agent` (subagent) tool call to the permission decider (`decision: 'ask'`) instead of running it unasked.
+Gates every `Agent` (subagent) tool call behind explicit permission.
 
-## What it does
-
-- Intercepts `tool.check` for the `Agent` tool and requires explicit approval before a subagent spawns, prompting the model to state what each subagent would do first.
-- Fails closed: if the hook encounters an error, it still returns `decision: 'ask'` rather than allowing the call through.
+- Intercepts `tool.check` on `Agent` with `decision: 'ask'`, prompting the model to state what each subagent will do first.
+- Fails closed: hook errors still return `decision: 'ask'`.
 
 ## Install
 

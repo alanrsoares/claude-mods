@@ -1,21 +1,21 @@
 # verify-gate
 
-Asks before shipping while edited code has not passed a check command since its last edit, and appends a warning at the end of a turn that left code unverified.
+Gates shipping commands while edited code is unverified, and warns at turn end.
 
-## What it does
-
-- Tracks `Edit`, `Write`, and `NotebookEdit` calls matching the watched-paths regex.
-- Clears the unverified flag when a `Bash` command matching the check-commands regex exits `0`.
-- Prompts for permission (`decision: 'ask'`) before a `Bash` command matching the ship-commands regex while unverified, unless the command text matches `<check> && <ship>` (a text heuristic rather than shell parsing, so a command that only prints a check string before `&&` also passes).
-- Appends a one-time warning to the end of a turn that edited watched files without a passing check.
+- Marks the session unverified on `Edit`, `Write`, or `NotebookEdit` matching `watch`.
+- Clears unverified when a `Bash` command matching `check` exits `0`.
+- Asks (`decision: 'ask'`) before a `Bash` command matching `ship` while unverified, unless the command matches `<check> && <ship>` (regex match, not shell-parsed).
+- Appends a one-time warning when a turn ends with unverified edits.
 
 ## Config (`/config`)
 
-| Option | Key | Default |
-| --- | --- | --- |
-| Watched paths | `watch` | `\.(c\|cc\|cpp\|cs\|css\|go\|h\|hpp\|java\|jsx?\|json\|kt\|mjs\|cjs\|py\|rb\|rs\|scss\|sql\|svelte\|swift\|tsx?\|vue\|ya?ml\|toml)$` |
-| Check commands | `check` | `\b(bun\|npm\|pnpm\|yarn)\s+(run\s+)?(check\|test\|lint\|typecheck\|verify)\b\|\bcargo\s+(test\|check\|clippy)\b\|\bgo\s+(test\|vet)\b\|\bpytest\b\|\bmake\s+(check\|test)\b` |
-| Ship commands | `ship` | `\bgit\s+commit\b\|\bgh\s+pr\s+create\b` |
+Exact default regexes live in [plugin.json](.claude-plugin/plugin.json).
+
+| Key | Matches |
+| --- | --- |
+| `watch` | Common source and config file extensions. |
+| `check` | `bun`/`npm`/`pnpm`/`yarn` check/test/lint/typecheck/verify, `cargo`, `go`, `pytest`, `make`. |
+| `ship` | `git commit`, `gh pr create`. |
 
 ## Install
 
