@@ -24,7 +24,14 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: googleapis/release-please-action@v5
+      - id: rp
+        uses: googleapis/release-please-action@v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      # PRs opened with GITHUB_TOKEN do not trigger assign.yml, so assign here.
+      - if: steps.rp.outputs.prs != ''
+        run: jq -r '.[].number' <<<"$PRS" | xargs -I{} gh pr edit {} --repo "$GITHUB_REPOSITORY" --add-assignee alanrsoares
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRS: ${{ steps.rp.outputs.prs }}
