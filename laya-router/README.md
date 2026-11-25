@@ -16,7 +16,7 @@ Rates each prompt via a local [laya](https://huggingface.co/convaiinnovations/la
 | `route` | `false` | Routes easy Opus turns to Sonnet (requires Claude Code `>= 2.1.309`). Rewrites prompt cache on switch. |
 | `routeMaxMessages` | `40` | Stops routing past this message count to avoid rewriting a large cache. |
 | `lowerEffort` | `false` | Lowers main-loop effort (down only) to `medium` (`difficulty < 1.5`) or `low` (`< 1.0` / easy chitchat). Requires `per_turn_effort` capability (no cache rewrite). |
-| `holdout` | `0` | Fraction (`0`–`1`) of prompts run untouched for A/B testing (e.g. `0.5`). |
+| `holdout` | `0` | Fraction (`0`–`1`) of prompts run untouched for A/B testing (e.g. `0.5`). Mid-turn prompts keep the running turn's arm. |
 
 ## Environment
 

@@ -45,7 +45,7 @@ Set up github.com/alanrsoares/claude-mods for me:
 
 - Load local mods via `CLAUDE_CODE_PLUGIN_DIRS` (colon-separated) in `settings.json` `env`; don't also install them from the marketplace.
 - Reload in-session with `/reload-plugins`.
-- Check: `bun run check` (typechecks and validates all mods) · `claude plugin validate <mod>` · `claude plugin test <mod>`.
+- Check: `bun run check` (typechecks and validates all mods; requires Claude Code-generated `.claude-plugin/types/tsconfig.json` per mod) · `claude plugin validate <mod>` · `claude plugin test <mod>`.
 - Enable pre-commit check: `git config core.hooksPath .githooks`.
 - Adding a mod updates: `package.json`, `.claude-plugin/marketplace.json`, `release-please-config.json`, `.release-please-manifest.json`, `README.md`, and `<mod>/README.md`.
 - Versioning is automated by release-please from Conventional Commits (bumps `plugin.json`, `marketplace.json`, `CHANGELOG.md`, and tags `<mod>-v<version>`).
