@@ -1,6 +1,42 @@
-import type { SessionMessage } from 'claude-code'
+import type { ContextCategory, PluginOptions, SessionMessage, SessionRateLimit } from 'claude-code'
 
-import type { Headroom, Spend, Totals } from '../types'
+import type { CategoryStat, ContextLimits, Headroom, Spend, Totals } from '../types'
+
+export type HudConfig = {
+  autoDock: boolean
+  showCost: boolean
+  showCategories: boolean
+  showTurnsLeft: boolean
+  showElapsed: boolean
+  showCache: boolean
+  showAgents: boolean
+  showRateLimits: boolean
+  showProxy: boolean
+}
+
+export const DEFAULT_CONFIG: HudConfig = {
+  autoDock: true,
+  showCost: true,
+  showCategories: true,
+  showTurnsLeft: true,
+  showElapsed: true,
+  showCache: true,
+  showAgents: true,
+  showRateLimits: true,
+  showProxy: true,
+}
+
+export const CONFIG_KEYS = Object.keys(DEFAULT_CONFIG) as (keyof HudConfig)[]
+
+/** Reads boolean HUD options with defaults for omitted or non-boolean entries. */
+export const parseConfig = (options?: PluginOptions): HudConfig => {
+  const out = { ...DEFAULT_CONFIG }
+  if (!options) return out
+  for (const k of CONFIG_KEYS) {
+    if (typeof options[k] === 'boolean') out[k] = options[k]
+  }
+  return out
+}
 
 export const tokens = (n: number) => {
   const k = Math.round(n / 1e3)
@@ -20,10 +56,99 @@ export const NO_SPEND: Spend = { prev: 0, turns: [] }
 const TURNS = 16
 
 /** The session total at a turn's end as one more turn; a total below the last one means `/clear`, so start over. */
-export const record = (s: Spend, total: number): Spend => {
-  if (total < s.prev) return { prev: total, turns: [] }
-  return { prev: total, turns: [...s.turns, total - s.prev].slice(-TURNS) }
+export const record = (s: Spend, total: number, contextTokens?: number): Spend => {
+  if (total < s.prev)
+    return contextTokens === undefined
+      ? { prev: total, turns: [] }
+      : { prev: total, turns: [], prevTokens: contextTokens, growth: [] }
+  const turns = [...s.turns, total - s.prev].slice(-TURNS)
+  if (contextTokens === undefined) return { ...s, prev: total, turns }
+  // a drop in context tokens means compaction; reset the growth window
+  if (s.prevTokens !== undefined && contextTokens < s.prevTokens)
+    return { prev: total, turns, prevTokens: contextTokens, growth: [] }
+  const growth =
+    s.prevTokens === undefined ? (s.growth ?? []) : [...(s.growth ?? []), contextTokens - s.prevTokens].slice(-TURNS)
+  return { prev: total, turns, prevTokens: contextTokens, growth }
 }
+
+/** Positive finite number parsed from a settings/env value, or undefined. */
+export const positiveNumber = (value: unknown): number | undefined => {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+/** Resolves effective context window, percentage, and nudge threshold against settings/env/breakdown limits. */
+export const effectiveContext = (
+  context: { percent?: number; tokens?: number; window: number },
+  limits: ContextLimits | undefined,
+  defaultNudgePct: number,
+) => {
+  const cap = positiveNumber(limits?.window)
+  const window = cap !== undefined && cap < context.window ? cap : context.window
+  const percent =
+    context.tokens !== undefined && window > 0 && (window !== context.window || context.percent === undefined)
+      ? Math.min(100, Math.round((context.tokens / window) * 100))
+      : context.percent
+  const threshold = positiveNumber(limits?.threshold)
+  const nudgeAt =
+    threshold !== undefined && window > 0
+      ? Math.min(defaultNudgePct, Math.max(1, Math.round((threshold / window) * 100) - 5))
+      : defaultNudgePct
+  return { context: { ...context, window, percent }, nudgeAt, threshold }
+}
+
+/** Estimated turns remaining before `limit` tokens, from recent positive per-turn token growth. */
+export const turnsLeft = (tokensNow: number | undefined, limit: number, growth?: readonly number[]) => {
+  if (tokensNow === undefined || !growth || tokensNow >= limit) return undefined
+  const pos = growth.filter(g => g > 0)
+  if (pos.length < 2) return undefined
+  const avg = pos.reduce((a, b) => a + b, 0) / pos.length
+  return avg > 0 ? Math.max(1, Math.floor((limit - tokensNow) / avg)) : undefined
+}
+
+const CAT_NAMES: Record<string, string> = {
+  Messages: 'msg',
+  'System prompt': 'sys',
+  'System tools': 'tools',
+  'MCP tools': 'mcp',
+  'Memory files': 'mem',
+  'Custom agents': 'agents',
+  Skills: 'skills',
+  'Slash commands': 'cmds',
+}
+
+/** Top `limit` used context categories, shortened for compact dock display. */
+export const topCategories = (categories: readonly ContextCategory[], limit = 3): CategoryStat[] =>
+  categories
+    .filter(c => c.kind === 'used' && !c.isDeferred && c.tokens > 0)
+    .sort((a, b) => b.tokens - a.tokens)
+    .slice(0, limit)
+    .map(c => ({ name: CAT_NAMES[c.name] ?? c.name.toLowerCase(), tokens: c.tokens }))
+
+const RATE_NAMES: Record<string, string> = {
+  five_hour: '5h',
+  seven_day: '7d',
+  spend_limit: 'cap',
+}
+
+/** Formats one rate-limit window as colored segments, with optional reset countdown. */
+export const rateLimitSegs = (r: SessionRateLimit, now: number): Seg[] => {
+  const label = RATE_NAMES[r.kind] ?? r.kind
+  const pct = Math.round(r.percentUsed)
+  const resetMs = r.resetsAt ? Date.parse(r.resetsAt) - now : NaN
+  const reset = Number.isFinite(resetMs) && resetMs > 0 ? ` · ${duration(resetMs)}` : ''
+  return [
+    { text: `  ${label} `, dim: true },
+    { text: `${pct}%`, color: heat(pct) },
+    ...(reset ? [{ text: reset, dim: true as const }] : []),
+  ]
+}
+
+export const CACHE_TTL_MS = 5 * 60_000
+
+/** Remaining prompt-cache warmth in ms, or undefined before any turn has completed. */
+export const cacheRemaining = (lastTurnAt: number | undefined, now: number, ttlMs = CACHE_TTL_MS) =>
+  lastTurnAt === undefined ? undefined : Math.max(0, lastTurnAt + ttlMs - now)
 
 /** One block a value, each as tall as its share of the largest. */
 export const spark = (xs: readonly number[]) => {
@@ -190,6 +315,18 @@ export type Band = {
   elapsed?: number
   /** What the last main turns cost each, oldest first. */
   turns?: readonly number[]
+  /** Estimated turns remaining before compaction. */
+  turnsLeft?: number
+  /** Top used context categories from local breakdown. */
+  categories?: readonly CategoryStat[]
+  /** Subscription or gateway rate-limit windows. */
+  rateLimits?: readonly SessionRateLimit[]
+  /** Current wall-clock ms, for rate-limit reset countdowns. */
+  now?: number
+  /** Running/pending subagent count. */
+  agents?: number
+  /** Remaining prompt-cache warmth in ms (0 = cold, undefined = none yet or turn active). */
+  cacheMs?: number
   /** 'other': ANTHROPIC_BASE_URL is not a headroom proxy, so the band leaves the proxy out. */
   stats: Headroom | null | 'other'
   /** A spinner frame while the main turn runs. */
@@ -236,9 +373,13 @@ const proxySegs = (stats: Headroom | null, t: Tier, spin?: string): Seg[] => {
 }
 
 /** The band's two halves: the model and context, then the proxy (empty for another proxy). */
-const halves = ({ model, level, version, context, cost, stats, spin, turnMs }: Band, t: Tier): [Seg[], Seg[]] => {
+const halves = ({ model, level, version, context, cost, agents, stats, spin, turnMs }: Band, t: Tier): [Seg[], Seg[]] => {
   const pct = context.percent
-  const tail = [t.tokens && `${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)]
+  const tail = [
+    t.tokens && `${tokens(context.tokens ?? 0)}/${tokens(context.window)}`,
+    cost && usd(cost),
+    t.saved && agents ? `⚡${agents}` : '',
+  ]
     .filter(Boolean)
     .join(' · ')
   const style: Omit<Seg, 'text'> = pct === undefined ? { dim: true } : { color: heat(pct) }
@@ -287,14 +428,50 @@ export const stack = (band: Band, room: number): Seg[][] => {
 }
 
 /** The band as lines for the side pane, one fact per line; the pane's header draws the context percent and bar. */
-export const rows = ({ model, level, version, context, cost, elapsed, turns = [], stats, spin }: Band): Seg[][] => {
-  const tail = [`${tokens(context.tokens ?? 0)}/${tokens(context.window)}`, cost && usd(cost)].filter(Boolean).join(' · ')
+export const rows = ({
+  model,
+  level,
+  version,
+  context,
+  cost,
+  elapsed,
+  turns = [],
+  turnsLeft: remaining,
+  categories,
+  rateLimits,
+  now = 0,
+  agents,
+  cacheMs,
+  stats,
+  spin,
+}: Band): Seg[][] => {
+  const tail = [
+    `${tokens(context.tokens ?? 0)}/${tokens(context.window)}`,
+    cost && usd(cost),
+    remaining !== undefined && `~${remaining}t`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   // the cost of each recent turn: a climb is context growing or a cold cache, a drop is a compaction
   const trend = turns.length < 2 ? [] : [[{ text: `  ${spark(turns)} ${usd(turns.at(-1)!)}/turn`, dim: true as const }]]
+  const cats = categories?.length
+    ? [[{ text: `  ${categories.map(c => `${c.name} ${tokens(c.tokens)}`).join(' · ')}`, dim: true as const }]]
+    : []
+  const cache =
+    cacheMs === undefined
+      ? []
+      : [[{ text: cacheMs > 0 ? `  ⛁ warm ${duration(cacheMs)}` : '  ⛁ cold', dim: true as const }]]
+  const running =
+    agents && agents > 0 ? [[{ text: `  ⚡ ${agents} agent${agents === 1 ? '' : 's'}`, color: 'cyan' }]] : []
+  const limits = (rateLimits ?? []).map(r => rateLimitSegs(r, now))
   const lines: Seg[][] = [
     [{ text: `◧ ${tail}`, dim: true }],
+    ...cats,
     ...(elapsed === undefined ? [] : [[{ text: `  ⏱ ${duration(elapsed)}`, dim: true as const }]]),
+    ...cache,
     ...trend,
+    ...running,
+    ...limits,
     [{ text: `󰧑 ${level === undefined ? model : `${model} ${level}`}`, dim: true }],
   ]
   if (stats === 'other') return lines

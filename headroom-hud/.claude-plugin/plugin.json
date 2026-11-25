@@ -8,5 +8,61 @@
   "types": "./types/index.d.ts",
   "license": "MIT",
   "repository": "https://github.com/alanrsoares/claude-mods",
-  "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/headroom-hud"
+  "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/headroom-hud",
+  "userConfig": {
+    "autoDock": {
+      "type": "boolean",
+      "title": "Auto-dock side pane",
+      "description": "Automatically open the side pane in fullscreen terminals at least 144 columns wide.",
+      "default": true
+    },
+    "showCost": {
+      "type": "boolean",
+      "title": "Show session cost & sparkline",
+      "description": "Display session USD cost estimate and recent per-turn cost sparkline.",
+      "default": true
+    },
+    "showCategories": {
+      "type": "boolean",
+      "title": "Show context categories",
+      "description": "Display top used context categories (messages, MCP tools, memory, etc.) in the side pane.",
+      "default": true
+    },
+    "showTurnsLeft": {
+      "type": "boolean",
+      "title": "Show turns-left estimate",
+      "description": "Display estimated turns remaining before compaction in the side pane.",
+      "default": true
+    },
+    "showElapsed": {
+      "type": "boolean",
+      "title": "Show session duration",
+      "description": "Display elapsed session time in the side pane.",
+      "default": true
+    },
+    "showCache": {
+      "type": "boolean",
+      "title": "Show prompt-cache countdown",
+      "description": "Display remaining prompt-cache warmth (warm/cold) between turns in the side pane.",
+      "default": true
+    },
+    "showAgents": {
+      "type": "boolean",
+      "title": "Show running subagents",
+      "description": "Display active subagent count in the band and side pane.",
+      "default": true
+    },
+    "showRateLimits": {
+      "type": "boolean",
+      "title": "Show rate-limit windows",
+      "description": "Display 5-hour / 7-day / spend rate-limit windows and reset countdowns in the side pane.",
+      "default": true
+    },
+    "showProxy": {
+      "type": "boolean",
+      "title": "Show Headroom proxy stats",
+      "description": "Poll and display Headroom proxy token/cost savings and version.",
+      "default": true
+    }
+  }
 }

@@ -119,3 +119,43 @@ test('the model hears once that context crossed 75%', async ($, on) => {
   expect((await submit()).context?.join('')).toContain('80% full')
   expect((await submit()).context).toBeUndefined()
 })
+
+test('settings autoCompactWindow caps the effective window and triggers the nudge on session.measure', async ($, on) => {
+  const toasts: string[] = []
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  on('env.get', () => ({ value: undefined }))
+  on('settings.read', () => ({ value: { autoCompactWindow: 200_000 } }))
+  on('session.usage', () => ({
+    value: { startedAt: 1, context: { percent: 16, tokens: 160_000, window: 1_000_000 }, rateLimits: [] },
+  }))
+  on('session.measure', (_, e) => e)
+  on('prompt.submit', (_, e) => ({ text: e.text, context: e.context }))
+
+  await $.session.measure({
+    context: { percent: 16, tokens: 160_000, window: 1_000_000 },
+    rateLimits: [],
+    changed: ['context'],
+  })
+  expect(toasts.at(-1)).toBe('◧ context 80% — consider /compact')
+  const submitted = await $.prompt.submit({ text: 'next', wait: false, origin: { kind: 'composer' } })
+  expect(submitted.context?.join('')).toContain('80% full')
+})
+
+test('config.set toggles headroom-hud visibility live and invalidates ui.render', async ($, on) => {
+  const invalidated: string[] = []
+  on('ui.invalidate', (_, e) => {
+    invalidated.push(e.event)
+    return { value: undefined }
+  })
+  on('config.set', (_, e) => ({ value: e.value }))
+
+  const base = { key: 'headroom-hud.showCost', provider: { plugin: 'headroom-hud', tier: 'user' }, origin: { kind: 'composer' } } as const
+  const res = await $.config.set({ ...base, previous: true, value: false })
+  expect(res.value).toBe(false)
+  expect(invalidated).toContain('ui.render')
+  // restore default for subsequent tests in the same module instance
+  await $.config.set({ ...base, previous: false, value: true })
+})

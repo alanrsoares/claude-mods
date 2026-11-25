@@ -10,8 +10,14 @@ export type Headroom = Totals & {
   base: Totals | null
 }
 
-/** What each main turn cost: the session total at the last turn's end, and the last turns' own part. */
-export type Spend = { prev: number; turns: number[] }
+/** What each main turn cost and added to context: session totals at the last turn's end, and recent deltas. */
+export type Spend = { prev: number; turns: number[]; prevTokens?: number; growth?: number[] }
+
+/** Effective context limits resolved from settings / env / engine breakdown. */
+export type ContextLimits = { window?: number; threshold?: number }
+
+/** Compact context category summary for the dock. */
+export type CategoryStat = { name: string; tokens: number }
 
 declare module 'claude-code' {
   interface McpToolInputs {

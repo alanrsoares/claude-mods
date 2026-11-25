@@ -1,30 +1,39 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, Timer } from 'claude-code'
+import type { EngineInterface, Register, SessionContextUsage, Timer } from 'claude-code'
 
-import type { Headroom, Totals } from '../types'
+import type { CategoryStat, ContextLimits, Headroom, Totals } from '../types'
 import {
   type Band,
+  type HudConfig,
   type Seg,
+  CONFIG_KEYS,
+  DEFAULT_CONFIG,
   DOWN,
   gauge,
   MAX_TOPICS,
   UNREADABLE,
+  cacheRemaining,
   compactInstructions,
   digest,
+  effectiveContext,
   health,
   isNewer,
   latestRelease,
   modelName,
   NO_SPEND,
+  positiveNumber,
   record,
   heat,
   exhale,
   parse,
+  parseConfig,
   parseTopics,
   rebase,
   paneColumns,
   rows,
   stack,
+  topCategories,
+  turnsLeft,
 } from './lib'
 
 const DEFAULT_PROXY = 'http://127.0.0.1:8787'
@@ -50,6 +59,8 @@ const GLYPH_MS = 120
 const FRAME_MS = 50
 /** When the main turn started; undefined while none runs. */
 let turnAt: number | undefined
+/** When the last main turn finished; drives prompt-cache warmth countdown. */
+let lastTurnAt: number | undefined
 let spinner: Timer | undefined
 let breath: Timer | undefined
 const COMPACT = '[compact]'
@@ -61,6 +72,12 @@ let effort: string | number | undefined
 let version: string | undefined
 /** This mod's own version, from its plugin.json; the pane's corner shows it. */
 let modVersion: string | undefined
+/** Live visibility & behavior config; initialized from `options` and updated on `config.set`. */
+let config: HudConfig = { ...DEFAULT_CONFIG }
+/** Effective context window / auto-compact threshold resolved from engine breakdown or settings/env. */
+let contextLimits: ContextLimits | undefined
+/** Top used context categories from the last local summary breakdown. */
+let categories: CategoryStat[] | undefined
 // The main loop sent a request since the last poll; while idle, /stats is not fetched.
 let isStale = true
 // The dock width last asked for; the pane asks again when its widest line changes.
@@ -69,15 +86,38 @@ let asked: number | undefined
 const COMPACT_AT = 75
 const REARM_BELOW = 50
 
-const warnContext = async ($: EngineInterface) => {
-  const { context } = await $.session.usage()
+/** Resolves effective context window, auto-compact threshold, and top categories without API calls. */
+const refreshLimits = async ($: EngineInterface, fallbackWindow?: number) => {
+  const summary = await $.session.usage({ breakdown: 'summary' }).catch(() => undefined)
+  const b = summary?.context.breakdown
+  if (b) {
+    contextLimits = { window: b.rawMaxTokens, threshold: b.autoCompactThreshold }
+    categories = topCategories(b.categories)
+    return
+  }
+  const envWin = positiveNumber(await $.env.get('CLAUDE_CODE_AUTO_COMPACT_WINDOW').catch(() => undefined))
+  const setWin = positiveNumber(await $.settings.read({ key: 'autoCompactWindow' }).catch(() => undefined))
+  const win = envWin ?? setWin
+  const pctOverride = positiveNumber(await $.env.get('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE').catch(() => undefined))
+  const baseWin = win ?? summary?.context.window ?? fallbackWindow
+  const threshold =
+    pctOverride !== undefined && baseWin !== undefined
+      ? Math.round((baseWin * Math.min(100, pctOverride)) / 100)
+      : undefined
+  contextLimits = win !== undefined || threshold !== undefined ? { window: win, threshold } : undefined
+}
+
+const warnContext = async ($: EngineInterface, rawContext?: SessionContextUsage) => {
+  const raw = rawContext ?? (await $.session.usage()).context
+  const { context, nudgeAt } = effectiveContext(raw, contextLimits, COMPACT_AT)
   const pct = context.percent ?? 0
+  const rearm = Math.min(REARM_BELOW, Math.max(0, nudgeAt - 15))
   const hasWarned = await read($, warned)
-  if (pct >= COMPACT_AT && !hasWarned) {
+  if (pct >= nudgeAt && !hasWarned) {
     await update($, warned, () => true)
     await update($, nudge, () => true)
     $.ui.toast(`◧ context ${pct}% — consider /compact`)
-  } else if (pct < REARM_BELOW && hasWarned) {
+  } else if (pct < rearm && hasWarned) {
     await update($, warned, () => false)
   }
 }
@@ -101,22 +141,33 @@ const checkUpdate = async ($: EngineInterface) => {
 }
 
 const band = async ($: EngineInterface): Promise<Band> => {
-  const { context, cost, startedAt } = await $.session.usage()
-  const isOther = await read($, other)
+  const { context: rawContext, cost, startedAt, rateLimits } = await $.session.usage()
+  const { context, nudgeAt, threshold } = effectiveContext(rawContext, contextLimits, COMPACT_AT)
+  const isOther = !config.showProxy || (await read($, other))
   const now = await $.clock.now()
+  const s = await read($, spend)
+  const running = config.showAgents
+    ? (await $.agent.list().catch(() => [])).filter(a => a.status === 'running' || a.status === 'pending').length
+    : 0
   // the % and [compact] breathe while context is high or a compaction waits
-  const urgent = (context.percent ?? 0) >= COMPACT_AT || (await read($, queued)) !== null
+  const urgent = (context.percent ?? 0) >= nudgeAt || (await read($, queued)) !== null
   if (urgent && !breath) breath = $.clock.every(150, () => $.ui.invalidate('ui.render'))
   if (!urgent && breath) (breath.cancel(), (breath = undefined))
   return {
     faint: urgent && exhale(now),
-    elapsed: now - startedAt,
-    turns: (await read($, spend)).turns,
+    elapsed: config.showElapsed ? now - startedAt : undefined,
+    turns: config.showCost ? s.turns : [],
+    turnsLeft: config.showTurnsLeft ? turnsLeft(context.tokens, threshold ?? context.window, s.growth) : undefined,
+    categories: config.showCategories ? categories : undefined,
+    rateLimits: config.showRateLimits ? rateLimits : [],
+    now,
+    agents: running,
+    cacheMs: config.showCache && turnAt === undefined ? cacheRemaining(lastTurnAt, now) : undefined,
     model: modelName(await $.session.model()),
     level: effort ?? ((await $.store.get('effort')) as string | number | null) ?? undefined,
     version,
     context,
-    cost: cost?.usd,
+    cost: config.showCost ? cost?.usd : undefined,
     stats: isOther ? 'other' : await read($, headroom),
     spin: turnAt === undefined ? undefined : SPIN[Math.floor((now - turnAt) / GLYPH_MS) % SPIN.length],
     turnMs: turnAt === undefined ? undefined : now - turnAt,
@@ -191,7 +242,19 @@ const strip = (
   </Box>
 )
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  config = parseConfig(options)
+
+  // Live-update HUD visibility when toggled in `/config` without needing `/reload-plugins`.
+  on('config.set', async ($, e, next) => {
+    const res = await next(e)
+    const field = e.key.startsWith('headroom-hud.') ? e.key.slice('headroom-hud.'.length) : undefined
+    if (res.deny === undefined && field && typeof res.value === 'boolean' && (CONFIG_KEYS as readonly string[]).includes(field)) {
+      config = { ...config, [field]: res.value }
+      $.ui.invalidate('ui.render')
+    }
+    return res
+  }).catch((_$, e, next) => next(e))
   // `/compact` asks which topics to keep; any failure leaves the compaction as it was.
   // On `command.run`: a builtin plugin's `session.compact` hook continues past the user tier.
   on('command.run', { command: 'compact' }, async ($, e, next) => {
@@ -212,16 +275,24 @@ export const register: Register = on => {
   on('prompt.submit', async ($, e, next) => {
     if (e.command || e.isMeta || !(await read($, nudge))) return next(e)
     await update($, nudge, () => false)
-    const { context } = await $.session.usage()
+    const { context } = effectiveContext((await $.session.usage()).context, contextLimits, COMPACT_AT)
     const line = `Context is ${context.percent ?? '?'}% full. At the next seam (task done, nothing half-edited), call ${TOOL_ID} with what the summary must keep.`
     return next({ ...e, context: [...(e.context ?? []), line] })
   }).catch((_$, e, next) => next(e))
 
+  on('session.measure', async ($, e, next) => {
+    if (e.changed.includes('context')) await refreshLimits($, e.context.window).catch(() => {})
+    await warnContext($, e.context)
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+
   on('session.start', async ($, e, next) => {
     const proxy = (await $.env.get('ANTHROPIC_BASE_URL')) ?? DEFAULT_PROXY
-    const { startedAt, cost } = await $.session.usage()
+    const { startedAt, cost, context } = await $.session.usage()
+    await refreshLimits($, context.window).catch(() => {})
     // count turns from here: the session's earlier cost is no turn's
-    if (cost) await update($, spend, s => (s.turns.length ? s : { prev: cost.usd, turns: [] }))
+    if (cost) await update($, spend, s => (s.turns.length ? s : { prev: cost.usd, turns: [], prevTokens: context.tokens, growth: [] }))
     const baseKey = `base:${startedAt}` // per session: concurrent sessions share the store
     await pruneBases($, await $.clock.now())
     // plugin.json's version is a string field, as /health's is; a failed read leaves the corner empty
@@ -257,6 +328,7 @@ export const register: Register = on => {
         .catch(() => undefined)
 
     const poll = async () => {
+      if (!config.showProxy) return
       const prev = await read($, headroom)
       // version changes only when the proxy restarts: ask again only after it was down
       if (version === undefined || !prev?.isUp) {
@@ -331,8 +403,10 @@ export const register: Register = on => {
       spinner?.cancel()
       spinner = undefined
       turnAt = undefined
-      const { cost } = await $.session.usage()
-      if (cost) await update($, spend, s => record(s, cost.usd))
+      lastTurnAt = await $.clock.now().catch(() => undefined)
+      const { cost, context } = await $.session.usage()
+      await refreshLimits($, context.window).catch(() => {})
+      if (cost) await update($, spend, s => record(s, cost.usd, context.tokens))
     }
     await warnContext($)
     $.ui.invalidate('ui.render')
@@ -435,7 +509,7 @@ export const register: Register = on => {
 
     const pane = (await $.ui.panes()).find(p => p.id === PANE)
     // Unasked, the engine places the pane only from 144 columns, so it docks only with room to spare.
-    if (!pane && e.viewport?.isFullscreen === true && !(await read($, dismissed))) {
+    if (config.autoDock && !pane && e.viewport?.isFullscreen === true && !(await read($, dismissed))) {
       void $.ui
         .open({ id: PANE, title: 'Headroom' })
         .then(() => $.ui.invalidate('ui.render'))

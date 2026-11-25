@@ -1,6 +1,38 @@
 import { expect, test } from 'claude-code/testing'
 
-import { compactInstructions, duration, exhale, fit, gauge, health, isNewer, latestRelease, modelName, NO_SPEND, paneColumns, parse, parseTopics, rebase, record, rows, segments, SWEEP_MS, sinceStart, spark, stack, TIERS, tokens, width } from './lib'
+import {
+  CACHE_TTL_MS,
+  cacheRemaining,
+  compactInstructions,
+  duration,
+  effectiveContext,
+  exhale,
+  fit,
+  gauge,
+  health,
+  isNewer,
+  latestRelease,
+  modelName,
+  NO_SPEND,
+  paneColumns,
+  parse,
+  parseConfig,
+  parseTopics,
+  rateLimitSegs,
+  rebase,
+  record,
+  rows,
+  segments,
+  SWEEP_MS,
+  sinceStart,
+  spark,
+  stack,
+  TIERS,
+  tokens,
+  topCategories,
+  turnsLeft,
+  width,
+} from './lib'
 import type { Band, Seg } from './lib'
 
 const STATS = JSON.stringify({
@@ -170,4 +202,84 @@ test('an update is a newer plain release on PyPI', async () => {
   expect(isNewer('0.10.0', '0.9.9')).toBe(true)
   expect(isNewer('0.42', '0.42.0')).toBe(false)
   expect(isNewer('0.41.9', '0.42.0')).toBe(false)
+})
+
+test('effectiveContext caps window from settings/breakdown and lowers nudgeAt for threshold overrides', async () => {
+  const capped = effectiveContext({ percent: 16, tokens: 160_000, window: 1_000_000 }, { window: 200_000 }, 75)
+  expect(capped.context.window).toBe(200_000)
+  expect(capped.context.percent).toBe(80)
+  expect(capped.nudgeAt).toBe(75)
+
+  const overridden = effectiveContext(
+    { percent: 55, tokens: 110_000, window: 200_000 },
+    { window: 200_000, threshold: 120_000 },
+    75,
+  )
+  expect(overridden.nudgeAt).toBe(55)
+})
+
+test('record tracks token growth, resets on compaction, and estimates turnsLeft', async () => {
+  let s = record({ prev: 0, turns: [], prevTokens: 50_000, growth: [] }, 0.2, 60_000)
+  s = record(s, 0.5, 80_000)
+  expect(s.growth).toEqual([10_000, 20_000])
+  expect(turnsLeft(80_000, 170_000, s.growth)).toBe(6)
+  // compaction drops tokens and resets growth
+  s = record(s, 0.7, 30_000)
+  expect(s.growth).toEqual([])
+  expect(turnsLeft(30_000, 170_000, s.growth)).toBeUndefined()
+})
+
+test('topCategories keeps top used non-deferred categories with short names', async () => {
+  const cats = topCategories([
+    { name: 'Free space', tokens: 100_000, color: 'inactive', isDeferred: false, kind: 'free' },
+    { name: 'MCP tools', tokens: 18_000, color: 'cyan', isDeferred: false, kind: 'used' },
+    { name: 'Messages', tokens: 62_000, color: 'green', isDeferred: false, kind: 'used' },
+    { name: 'Deferred tools', tokens: 40_000, color: 'dim', isDeferred: true, kind: 'deferred' },
+    { name: 'Memory files', tokens: 4_000, color: 'yellow', isDeferred: false, kind: 'used' },
+    { name: 'System tools', tokens: 12_000, color: 'blue', isDeferred: false, kind: 'used' },
+  ])
+  expect(cats).toEqual([
+    { name: 'msg', tokens: 62_000 },
+    { name: 'mcp', tokens: 18_000 },
+    { name: 'tools', tokens: 12_000 },
+  ])
+})
+
+test('pane renders rate limits, running agents, categories, turns-left, and cache warmth', async () => {
+  const now = 1_000_000
+  const resetsAt = new Date(now + 72 * 60_000).toISOString()
+  expect(rateLimitSegs({ kind: 'five_hour', percentUsed: 86, resetsAt }, now)).toEqual([
+    { text: '  5h ', dim: true },
+    { text: '86%', color: 'red' },
+    { text: ' · 1h12', dim: true },
+  ])
+  expect(cacheRemaining(now - 60_000, now)).toBe(CACHE_TTL_MS - 60_000)
+  expect(cacheRemaining(now - CACHE_TTL_MS - 1_000, now)).toBe(0)
+
+  const lines = rows({
+    ...BAND,
+    turnsLeft: 5,
+    categories: [
+      { name: 'msg', tokens: 62_000 },
+      { name: 'mcp', tokens: 18_000 },
+    ],
+    agents: 2,
+    cacheMs: 220_000,
+    rateLimits: [{ kind: 'five_hour', percentUsed: 42, resetsAt }],
+    now,
+  }).map(l => l.map(g => g.text).join(''))
+  expect(lines[0]).toContain('~5t')
+  expect(lines).toContain('  msg 62k · mcp 18k')
+  expect(lines).toContain('  ⛁ warm 3m')
+  expect(lines).toContain('  ⚡ 2 agents')
+  expect(lines).toContain('  5h 42% · 1h12')
+  expect(segments({ ...BAND, agents: 2 }, TIERS[0]).map(g => g.text).join('')).toContain('⚡2')
+})
+
+test('parseConfig defaults omitted keys to true and respects boolean overrides', async () => {
+  expect(parseConfig()).toMatchObject({ autoDock: true, showCost: true, showProxy: true })
+  const cfg = parseConfig({ showCost: false, autoDock: false, showProxy: 'nope' })
+  expect(cfg.showCost).toBe(false)
+  expect(cfg.autoDock).toBe(false)
+  expect(cfg.showProxy).toBe(true)
 })
