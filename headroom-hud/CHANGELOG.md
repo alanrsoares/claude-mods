@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.7.1...headroom-hud-v0.8.0) (2026-11-25)
+
+
+### Features
+
+* **headroom-hud:** add config and HUD metrics ([1adce62](https://github.com/alanrsoares/claude-mods/commit/1adce621c3e3bc7d1b3e1b86ea93708dd3a5427b))
+
 ## [0.7.1](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.7.0...headroom-hud-v0.7.1) (2026-11-25)
 
 
