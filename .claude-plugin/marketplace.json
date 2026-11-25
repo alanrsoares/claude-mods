@@ -52,17 +52,6 @@
       "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/laya-router"
     },
     {
-      "name": "ste100",
-      "source": "./ste100",
-      "description": "Asks the model to write in ASD-STE100 Simplified Technical English and lints each answer against its sentence rules.",
-      "version": "0.2.0",
-      "author": {
-        "name": "Alan R. Soares"
-      },
-      "license": "MIT",
-      "homepage": "https://github.com/alanrsoares/claude-mods/tree/main/ste100"
-    },
-    {
       "name": "verify-gate",
       "source": "./verify-gate",
       "description": "Asks before git commit or gh pr create while edited code has not passed a check command since its last edit.",
