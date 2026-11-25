@@ -1,6 +1,6 @@
 {
   "name": "headroom-hud",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "HUD band and side pane: model/effort, context gauge, session cost, headroom proxy savings, and guided /compact.",
   "author": {
     "name": "Alan R. Soares"
