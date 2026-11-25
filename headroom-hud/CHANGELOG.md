@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.7.0...headroom-hud-v0.7.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **headroom-hud:** normalize provider model ids ([#18](https://github.com/alanrsoares/claude-mods/issues/18)) ([28c10a6](https://github.com/alanrsoares/claude-mods/commit/28c10a6a2c48ac1fb7dbf9174c43707c3ffbf26c))
+
 ## [0.7.0](https://github.com/alanrsoares/claude-mods/compare/headroom-hud-v0.6.0...headroom-hud-v0.7.0) (2026-11-23)
 
 
