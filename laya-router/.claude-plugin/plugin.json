@@ -13,25 +13,25 @@
     "route": {
       "type": "boolean",
       "title": "Route the main loop",
-      "description": "Send an easy turn of an Opus session to Sonnet. Each switch writes the other model's prompt cache, so it can cost more than it saves.",
+      "description": "Route easy Opus turns to Sonnet (rewrites prompt cache on switch).",
       "default": false
     },
     "routeMaxMessages": {
       "type": "number",
       "title": "Route only up to this many messages",
-      "description": "Past this length the conversation stays on the session's model, because a switch would rewrite a large cache.",
+      "description": "Stop routing past this message count to avoid rewriting a large cache.",
       "default": 40
     },
     "lowerEffort": {
       "type": "boolean",
       "title": "Lower effort on easy turns",
-      "description": "Send an easy main-loop turn at medium effort, and trivial turns or easy chat at low. Down only. Acts only when CLAUDE_CODE_MODEL_CAPABILITIES has per_turn_effort, so no prompt cache is rewritten.",
+      "description": "Lower main-loop effort on easy/trivial turns when per_turn_effort is enabled (no cache rewrite).",
       "default": false
     },
     "holdout": {
       "type": "number",
       "title": "Holdout share",
-      "description": "The share of rated prompts (0 to 1) that run as if laya were off: no Agent fill, route or lower effort. /laya compares them with the rest. Set 0.5 to test if laya helps.",
+      "description": "Fraction (0-1) of rated prompts run untouched for A/B comparison in /laya.",
       "default": 0
     }
   }

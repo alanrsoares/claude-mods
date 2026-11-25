@@ -3,12 +3,12 @@ import type { Register } from 'claude-code'
 import { lint, summary } from './lint'
 
 const RULES = `Write in ASD-STE100 Simplified Technical English.
-- Use one word for one meaning. Use short, common words.
-- Use active voice and simple tenses. Do not use -ing forms as verbs.
-- Keep articles (a, an, the). Do not drop them.
-- Write at most 20 words in an instruction and 25 in a description.
-- Write at most 6 sentences in a paragraph. Put one idea in each sentence.
-- Do not apply these rules to code, commands, paths, identifiers or quoted text.`
+- Use one word per meaning and short, common words.
+- Use active voice and simple tenses (avoid -ing verb forms).
+- Keep articles (a, an, the).
+- Limit instructions to 20 words and descriptions to 25 words.
+- Limit paragraphs to 6 sentences, one idea per sentence.
+- Exempt code, commands, paths, identifiers, and quotes.`
 
 const SUBAGENT_NOTE = 'Write your answer in ASD-STE100 Simplified Technical English: short active sentences, no dropped articles, code exempt.'
 

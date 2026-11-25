@@ -1,7 +1,7 @@
 {
   "name": "headroom-hud",
   "version": "0.7.1",
-  "description": "Band above the prompt: context-window gauge, session cost and headroom proxy savings.",
+  "description": "HUD band and side pane: model/effort, context gauge, session cost, headroom proxy savings, and guided /compact.",
   "author": {
     "name": "Alan R. Soares"
   },
