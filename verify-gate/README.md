@@ -1,3 +1,5 @@
+<img src=".claude-plugin/icon.png" alt="verify-gate icon" width="64" />
+
 # verify-gate
 
 Gates shipping commands while edited code is unverified, and warns at turn end.

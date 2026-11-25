@@ -1,3 +1,5 @@
+<img src=".claude-plugin/icon.png" alt="headroom-hud icon" width="64" />
+
 # headroom-hud
 
 HUD band above the prompt (and docked side pane) showing model/effort, context usage, session cost, and [headroom](https://github.com/chopratejas/headroom) proxy savings.

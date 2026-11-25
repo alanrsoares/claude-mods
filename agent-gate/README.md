@@ -1,3 +1,5 @@
+<img src=".claude-plugin/icon.png" alt="agent-gate icon" width="64" />
+
 # agent-gate
 
 Gates every `Agent` (subagent) tool call behind explicit permission.

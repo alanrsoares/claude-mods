@@ -1,3 +1,5 @@
+<img src=".claude-plugin/icon.png" alt="ste100 icon" width="64" />
+
 # ste100
 
 Enforces ASD-STE100 Simplified Technical English and lints answers in the status line.

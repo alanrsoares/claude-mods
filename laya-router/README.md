@@ -1,3 +1,5 @@
+<img src=".claude-plugin/icon.png" alt="laya-router icon" width="64" />
+
 # laya-router
 
 Rates each prompt via a local [laya](https://huggingface.co/convaiinnovations/laya) server (`laya-serve`) for difficulty, domain, and sensitivity (money, legal, medical, or safety moves up one tier).

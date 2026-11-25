@@ -1,3 +1,5 @@
+<img src=".claude-plugin/icon.png" alt="bash-tidy icon" width="64" />
+
 # bash-tidy
 
 Cleans up `Bash` tool calls:
